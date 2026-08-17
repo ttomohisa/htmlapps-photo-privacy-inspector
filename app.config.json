@@ -1,0 +1,22 @@
+{
+  "$schema": "./schemas/app-config.schema.json",
+  "name": "Photo Privacy Inspector",
+  "nameJa": "Photo Privacy Inspector",
+  "slug": "photo-privacy-inspector",
+  "version": "1.0.0",
+  "description": "Inspect hidden photo metadata, understand privacy exposure, and create verified clean copies entirely in your browser.",
+  "descriptionJa": "写真に隠れた位置情報・撮影日時・端末情報などを確認し、共有前にプライバシーリスクを判断・除去できる完全ローカルツールです。",
+  "defaultLanguage": "auto",
+  "repository": {
+    "owner": "ttomohisa",
+    "name": "htmlapps-photo-privacy-inspector"
+  },
+  "build": {
+    "output": "dist/index.html",
+    "blockRuntimeNetwork": true,
+    "selfExtract": {
+      "enabled": true,
+      "output": "dist/index.self-extract.html"
+    }
+  }
+}

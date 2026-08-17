@@ -1,0 +1,20 @@
+{
+  "$schema": "../schemas/dependencies.schema.json",
+  "dependencies": [
+    {
+      "id": "dayjs",
+      "package": "dayjs",
+      "version": "1.11.13",
+      "license": "MIT",
+      "homepage": "https://day.js.org/",
+      "assets": [
+        {
+          "key": "main",
+          "path": "dayjs.min.js",
+          "mime": "text/javascript",
+          "stripSourceMapComment": true
+        }
+      ]
+    }
+  ]
+}

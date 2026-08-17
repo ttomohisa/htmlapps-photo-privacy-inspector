@@ -1,0 +1,35 @@
+{
+  "$schema": "./schemas/dependencies.schema.json",
+  "dependencies": [
+    {
+      "id": "exifreader",
+      "package": "exifreader",
+      "version": "4.41.3",
+      "license": "MPL-2.0",
+      "homepage": "https://github.com/mattiasw/ExifReader",
+      "assets": [
+        {
+          "key": "main",
+          "path": "dist/exif-reader.js",
+          "mime": "text/javascript",
+          "stripSourceMapComment": true
+        }
+      ]
+    },
+    {
+      "id": "fflate",
+      "package": "fflate",
+      "version": "0.8.3",
+      "license": "MIT",
+      "homepage": "https://github.com/101arrowz/fflate",
+      "assets": [
+        {
+          "key": "main",
+          "path": "umd/index.js",
+          "mime": "text/javascript",
+          "stripSourceMapComment": true
+        }
+      ]
+    }
+  ]
+}
