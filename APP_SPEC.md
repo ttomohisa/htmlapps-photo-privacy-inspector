@@ -20,6 +20,7 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 5. Optionally create a lossless Privacy Clean copy (JPEG/PNG/WebP) or a Canvas-based Deep Clean copy.
 6. Re-scan the cleaned bytes and show before/after verification.
 7. Download the clean image, JSON report, batch report, or ZIP of cleaned files.
+8. If metadata parsing fails, show an unavailable-analysis error naming the file and do not assign a risk score. Failed output verification prevents successful download/verification; batch ZIPs omit outputs that cannot be parsed and identify the skipped files.
 
 ## 4. Privacy and network
 
