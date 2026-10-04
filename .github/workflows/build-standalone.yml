@@ -31,6 +31,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check-repository.ps1
 
+      - name: Test metadata failure handling
+        shell: pwsh
+        run: node --test scripts/test-metadata-failures.cjs
+
       - name: Upload standalone artifact
         uses: actions/upload-artifact@v7
         with:

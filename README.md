@@ -56,9 +56,15 @@ The generated HTML contains a Content Security Policy with `connect-src 'none'`.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## Verification during development
+
+Run `scripts/check-repository.ps1` to build and check both HTML artifacts. After the build populates the pinned dependency cache, run `node --test scripts/test-metadata-failures.cjs` with Node.js 20 or newer for the synthetic metadata-failure regressions. Node.js is only needed for these development tests.
+
 ## Limitations
 
 Metadata removal cannot hide information visible in the pixels themselves, such as faces, addresses, signs, plates, or recognizable locations. Lossless cleaning is limited to JPEG/PNG/WebP. Deep Clean depends on browser decoding support. Proprietary metadata may not always be recognized, which is why post-clean verification is part of the workflow.
+
+If metadata parsing fails, the app names the file and reports that its sharing risk is unavailable. It does not assign a low-risk score. If post-clean parsing fails, saving the unverified copy is blocked; ZIP creation omits failed outputs and lists the affected files.
 
 ## License
 
