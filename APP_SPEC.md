@@ -33,7 +33,9 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 
 - JPEG Privacy Clean removes APP1 (EXIF/XMP), APP13 (IPTC/Photoshop), APP12 and COM segments while preserving encoded image scan data and common color/application segments.
 - PNG Privacy Clean removes eXIf, tEXt, zTXt, iTXt and tIME chunks.
-- WebP Privacy Clean removes EXIF/XMP chunks and clears their VP8X flags.
+- JPEG and WebP Privacy Clean retain only a newly generated minimal EXIF Orientation tag (values 2–8) when needed; all original EXIF is discarded. This preserves display orientation in viewers that support it without recompressing pixels. PNG eXIf is removed entirely, including orientation.
+- WebP Privacy Clean removes XMP, rebuilds the optional Orientation-only EXIF chunk, and updates both metadata flags while preserving image, color and animation chunks.
+- Zero-valued JFIF thumbnail width/height describe absence and are not sensitive tags. Real thumbnail entries and positive dimensions remain classified and reported, including after cleaning.
 - Deep Clean redraws the image through Canvas; it can change compression and file bytes.
 - Every clean result is parsed again and the remaining sensitive metadata is shown.
 
