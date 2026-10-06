@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.0.1 - 2026-10-06
+
+- Preserve WebP display orientation with newly generated Orientation-only EXIF while keeping encoded image, alpha, color and animation data unchanged; remove all original EXIF and XMP.
+- Explain the retained JPEG/WebP orientation and unchanged PNG eXIf limitation in Japanese and English.
+- Do not report zero-valued JFIF thumbnail dimensions as an embedded thumbnail; retain warnings for actual thumbnail information.
+- Add real-parser, encoded-payload, single/batch verification and independent decoder regressions.
+- WebPの向き情報だけを最小EXIFに残し、再圧縮せず表示方向を保持します。元のEXIF/XMPは削除します。
+- JPEG/WebPの向き保持とPNGのeXIf削除の制限を日英で明記し、JFIFのサムネイル寸法0の誤検出を修正しました。
+
+## Previously unreleased
 
 - Add a named, cancellable in-app confirmation for removing just the selected photo, preserving the remaining analyses and original files.
 - Cancel stale import, clean verification and ZIP callbacks after confirmed removal or Clear All; dispose discarded previews, reset transient UI and suppress partial ZIP downloads.

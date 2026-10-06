@@ -5,3 +5,4 @@ dist/*
 *.part
 .DS_Store
 Thumbs.db
+test-output/

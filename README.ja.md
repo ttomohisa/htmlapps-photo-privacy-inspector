@@ -145,3 +145,11 @@ Copyright © 2026 ttomohisa
 **その他 → この写真を取り除く** で選択中の写真と解析結果だけを取り除けます。確認ダイアログにはファイル名を表示します。キャンセルやEscでは変更しません。確認後は次の写真、末尾なら前の写真を選択します。元ファイルは変更しません。
 
 取り除く操作や **すべて消去** を確認すると、処理中の読み込み・Clean・ZIP作成を中止し、一時的な検証結果と進捗表示をリセットします。不要なプレビューURLも解放します。中断した一部のZIPは保存しません。残った写真の解析結果は保持され、引き続きCleanやレポート保存ができます。Cleanのダイアログを閉じた場合も、処理中の検証を中止します。
+
+## 向き情報とCleanの検証
+
+Privacy Cleanでは再圧縮せず、JPEG/WebPの表示方向に必要な場合だけ、向き情報だけの最小EXIFを新しく生成します。元のEXIFは破棄します。向きの表示は閲覧ソフトの対応によります。PNGのeXIfは向き情報も含めてすべて削除します。JFIFサムネイルの幅・高さが0の場合は埋め込み画像がないため、要注意情報に数えません。実際のサムネイルや正の寸法は引き続き報告します。
+
+`scripts/check-repository.ps1`は向き1〜8、WebPのアルファ・アニメーション・sRGBプロファイル、JPEG/PNG対照を含むClean回帰テストを、ソースと両方の生成HTMLで実行します。独立した画素検証は、開発環境にPillowを用意し、`PHOTO_CLEAN_OUTPUT_DIR=./test-output node --test scripts/test-photo-clean.cjs`、続けて`python scripts/verify-photo-pixels.py ./test-output`を実行します（PowerShellではNode実行前に`$env:PHOTO_CLEAN_OUTPUT_DIR="./test-output"`を設定）。向きを適用した全フレームの寸法とRGBA画素を比較します。実ブラウザーでの保存・再表示確認とは別の検証です。
+
+Node環境にはDOMParserがないため、EXIFは実際の解析エンジンで確認し、XMPはチャンクが除去されたことを検証します。sRGB対照ではICCの既存警告が残ることも確認し、メタデータがすべて消えたとは扱いません。

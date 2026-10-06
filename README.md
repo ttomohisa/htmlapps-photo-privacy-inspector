@@ -39,7 +39,7 @@ Run `build-standalone.bat` on Windows. The first build downloads the exact depen
 
 ## Cleaning modes
 
-**Privacy Clean** edits JPEG/PNG/WebP container metadata without recompressing the encoded image payload. Common EXIF, GPS, XMP, IPTC, text, and comment metadata is removed while color-management data is preserved where possible. The output is always parsed again to report any remaining sensitive fields.
+**Privacy Clean** edits JPEG/PNG/WebP container metadata without recompressing the encoded image payload. Common EXIF, GPS, XMP, IPTC, text, and comment metadata is removed while color-management data is preserved where possible. JPEG and WebP retain only a newly generated minimal EXIF Orientation tag when needed; viewer support for orientation varies. PNG eXIf is removed entirely, including orientation. The output is always parsed again to report any remaining sensitive fields.
 
 **Deep Clean** redraws the image through Canvas and exports a fresh image. This is more aggressive but can recompress JPEG/WebP data and depends on browser decoding support.
 
@@ -58,7 +58,7 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Verification during development
 
-With Node.js 20 or newer available, run `scripts/check-repository.ps1` to build both HTML artifacts and check metadata safety and photo lifecycle behavior against the source, readable release and restored self-extract payload. To repeat the source tests after the build populates the pinned dependency cache, run `node --test scripts/test-metadata-failures.cjs scripts/test-photo-lifecycle.cjs` with Node.js 20 or newer for the synthetic metadata-failure regressions. Node.js is only needed for these development tests.
+With Node.js 20 or newer available, run `scripts/check-repository.ps1` to build both HTML artifacts and check metadata safety and photo lifecycle behavior against the source, readable release and restored self-extract payload. To repeat the source tests after the build populates the pinned dependency cache, run `node --test scripts/test-metadata-failures.cjs scripts/test-photo-lifecycle.cjs scripts/test-photo-clean.cjs` with Node.js 20 or newer for metadata-failure, lifecycle and lossless-clean regressions. Node.js is only needed for these development tests.
 
 ## Limitations
 
@@ -77,3 +77,7 @@ Licensed under the [MIT License](LICENSE).
 Choose **More → Remove this photo** to remove only the selected photo and its analysis. The in-app confirmation names the photo. Cancel or Esc leaves it unchanged; confirmation selects the next photo, or the previous one if it was last. Original files are never modified.
 
 Confirmed removal and **Clear All** cancel pending imports, cleaning and ZIP creation, discard temporary verification results, reset progress and release discarded previews. An interrupted batch never downloads a partial ZIP. Remaining photos keep their analyses and can still be cleaned or reported. Closing the cleaning dialog also cancels its pending verification.
+
+### Independent pixel verification
+
+The synthetic fixtures cover WebP orientations 1–8, lossless alpha, animation and a retained sRGB color profile, plus JPEG/PNG controls. The Node tests use the pinned ExifReader and compare encoded payloads. Node has no DOMParser, so EXIF is parsed normally while XMP removal is checked structurally by chunk absence. The sRGB fixture explicitly preserves its current ICC-derived warnings; it is not treated as a metadata-free output. For an independent decoder check, install Pillow in your development environment, run `PHOTO_CLEAN_OUTPUT_DIR=./test-output node --test scripts/test-photo-clean.cjs` (PowerShell: `$env:PHOTO_CLEAN_OUTPUT_DIR="./test-output"` before the Node command), then `python scripts/verify-photo-pixels.py ./test-output`. This checks orientation-aware dimensions and every decoded RGBA pixel, including every animation frame. These checks complement actual browser download/reopen QA; they do not claim that all viewers honor WebP orientation.

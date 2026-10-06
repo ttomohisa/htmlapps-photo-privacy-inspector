@@ -94,7 +94,7 @@ $previousAppHtml = $env:APP_HTML
 try {
   foreach ($html in @("src/index.template.html", [string]$app.build.output, [string]$app.build.selfExtract.output)) {
     $env:APP_HTML = $html
-    & node --test (Join-Path $Root "scripts/test-metadata-failures.cjs") (Join-Path $Root "scripts/test-photo-lifecycle.cjs")
+    & node --test (Join-Path $Root "scripts/test-metadata-failures.cjs") (Join-Path $Root "scripts/test-photo-lifecycle.cjs") (Join-Path $Root "scripts/test-photo-clean.cjs")
     if ($LASTEXITCODE -ne 0) { throw "Photo regression checks failed: $html" }
   }
 } finally {
