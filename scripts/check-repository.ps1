@@ -89,4 +89,16 @@ $buildArguments = @{}
 if ($ForceDownload) { $buildArguments.ForceDownload = $true }
 & (Join-Path $Root "build-standalone.ps1") @buildArguments
 
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { throw "Node.js 20 or newer is required for the regression checks." }
+$previousAppHtml = $env:APP_HTML
+try {
+  foreach ($html in @("src/index.template.html", [string]$app.build.output, [string]$app.build.selfExtract.output)) {
+    $env:APP_HTML = $html
+    & node --test (Join-Path $Root "scripts/test-metadata-failures.cjs") (Join-Path $Root "scripts/test-photo-lifecycle.cjs")
+    if ($LASTEXITCODE -ne 0) { throw "Photo regression checks failed: $html" }
+  }
+} finally {
+  $env:APP_HTML = $previousAppHtml
+}
+
 Write-Host "[OK] Repository check passed." -ForegroundColor Green

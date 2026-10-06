@@ -51,3 +51,11 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Japanese/English.
 - Batch list, current-photo detail, sticky bulk actions on mobile.
 - Destructive clear uses an in-app dialog.
+
+## 8. Photo removal and interrupted work
+
+- “Remove this photo” opens an in-app confirmation naming the selected photo and explaining that the original file is unchanged. Cancel and Esc do not alter photos or ongoing work.
+- Confirm removes only that photo and its preview URL. Keep the other photos and their analyses. Select the next photo, or the previous one when removing the last; removing the only photo returns to the empty state.
+- Confirmed removal and Clear All invalidate pending imports, clean verification and batch work, reset progress, close obsolete dialogs and discard transient clean results. Old success/error callbacks must not restore photos, results, names, dialogs or downloads, or alter a newer operation.
+- Interrupted batches never download a partial ZIP. This differs from ordinary per-file verification failure, which still excludes only failed outputs and reports their names.
+- Superseded imports discard and revoke late preview URLs. Repeated single cleans and batches publish only their latest operation; dismissing the clean dialog cancels its pending verification.
