@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add a named, cancellable in-app confirmation for removing just the selected photo, preserving the remaining analyses and original files.
+- Cancel stale import, clean verification and ZIP callbacks after confirmed removal or Clear All; dispose discarded previews, reset transient UI and suppress partial ZIP downloads.
+- Add operation-ownership regressions for repeated work and cancellation, run against source and both generated release forms.
+- 選択中の写真だけを取り除く、ファイル名付きの確認ダイアログを追加しました。残った写真の解析結果と元ファイルは保持します。
+- 取り除く操作や全消去後に古い読み込み・Clean検証・ZIP処理が結果を復元しないようにし、不要なプレビューを解放します。中断した一部のZIPは保存しません。
+
 - Treat metadata parser failures as unavailable analysis instead of assigning a low-risk score; show the affected file names in Japanese and English.
 - Block successful post-clean verification and saving when parsing fails, clear stale verification results, and omit unverified outputs from ZIPs with a visible failure list.
 - Added synthetic regressions for unreadable inputs, valid images without EXIF, failed verification, and mixed batch outputs.

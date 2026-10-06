@@ -113,7 +113,7 @@ build-standalone.bat -ForceDownload
 
 ## 開発時の検証
 
-`scripts/check-repository.ps1` で両方のHTMLをビルド・検証します。ビルド後の固定依存キャッシュを使い、Node.js 20以降で `node --test scripts/test-metadata-failures.cjs` を実行すると、合成画像による解析失敗の回帰テストを実行できます。Node.jsはこの開発テストだけに必要です。
+Node.js 20以降を用意し、`scripts/check-repository.ps1` で両方のHTMLをビルドして、ソース・通常版・自己展開版の復元内容に対する解析失敗と写真の削除・中断の回帰テストを実行します。ビルド後の固定依存キャッシュを使い、 `node --test scripts/test-metadata-failures.cjs scripts/test-photo-lifecycle.cjs` を実行すると、合成画像によるソースの回帰テストを再実行できます。Node.jsはこの開発テストだけに必要です。
 
 ## 制限事項
 
@@ -139,3 +139,9 @@ build-standalone.bat -ForceDownload
 Copyright © 2026 ttomohisa
 
 このプロジェクトは [MIT License](LICENSE) で公開されています。
+
+## 写真を取り除く・処理を中止する
+
+**その他 → この写真を取り除く** で選択中の写真と解析結果だけを取り除けます。確認ダイアログにはファイル名を表示します。キャンセルやEscでは変更しません。確認後は次の写真、末尾なら前の写真を選択します。元ファイルは変更しません。
+
+取り除く操作や **すべて消去** を確認すると、処理中の読み込み・Clean・ZIP作成を中止し、一時的な検証結果と進捗表示をリセットします。不要なプレビューURLも解放します。中断した一部のZIPは保存しません。残った写真の解析結果は保持され、引き続きCleanやレポート保存ができます。Cleanのダイアログを閉じた場合も、処理中の検証を中止します。

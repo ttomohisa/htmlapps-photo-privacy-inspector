@@ -58,7 +58,7 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Verification during development
 
-Run `scripts/check-repository.ps1` to build and check both HTML artifacts. After the build populates the pinned dependency cache, run `node --test scripts/test-metadata-failures.cjs` with Node.js 20 or newer for the synthetic metadata-failure regressions. Node.js is only needed for these development tests.
+With Node.js 20 or newer available, run `scripts/check-repository.ps1` to build both HTML artifacts and check metadata safety and photo lifecycle behavior against the source, readable release and restored self-extract payload. To repeat the source tests after the build populates the pinned dependency cache, run `node --test scripts/test-metadata-failures.cjs scripts/test-photo-lifecycle.cjs` with Node.js 20 or newer for the synthetic metadata-failure regressions. Node.js is only needed for these development tests.
 
 ## Limitations
 
@@ -71,3 +71,9 @@ If metadata parsing fails, the app names the file and reports that its sharing r
 Copyright © 2026 ttomohisa
 
 Licensed under the [MIT License](LICENSE).
+
+## Removing photos and cancelling work
+
+Choose **More → Remove this photo** to remove only the selected photo and its analysis. The in-app confirmation names the photo. Cancel or Esc leaves it unchanged; confirmation selects the next photo, or the previous one if it was last. Original files are never modified.
+
+Confirmed removal and **Clear All** cancel pending imports, cleaning and ZIP creation, discard temporary verification results, reset progress and release discarded previews. An interrupted batch never downloads a partial ZIP. Remaining photos keep their analyses and can still be cleaned or reported. Closing the cleaning dialog also cancels its pending verification.
