@@ -240,6 +240,7 @@ $manifest = [ordered]@{
     slug = [string]$appConfig.slug
     version = [string]$appConfig.version
   }
+  sourceModules = @([ordered]@{ path = "src/ai-metadata.js"; sha256 = Get-Sha256FileHex (Join-Path $Root "src/ai-metadata.js") })
   dependencies = $manifestDependencies
 }
 
@@ -247,6 +248,7 @@ Write-Step "Generating standalone HTML"
 $template = [System.IO.File]::ReadAllText($TemplatePath, [System.Text.Encoding]::UTF8)
 $assetBundleJson = ConvertTo-SafeJson $assetBundle 50
 $replacements = [ordered]@{
+  "/*__AI_METADATA_SOURCE__*/" = [System.IO.File]::ReadAllText((Join-Path $Root "src/ai-metadata.js"), [System.Text.Encoding]::UTF8)
   "__APP_CONFIG_JSON__" = ConvertTo-SafeJson $appConfig 20
   "__BUILD_MANIFEST_JSON__" = ConvertTo-SafeJson $manifest 40
   "__EMBEDDED_ASSET_BUNDLE_BASE64__" = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($assetBundleJson))

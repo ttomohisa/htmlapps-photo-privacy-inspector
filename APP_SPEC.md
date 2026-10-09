@@ -51,6 +51,9 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Mobile-first from 320px.
 - Light-only UI matching `htmlapps-template`.
 - Japanese/English.
+- A concise sharing headline, plain drop-panel background, and green SVG exposure icons keep the interface consistent.
+- Metadata search and filters stay in normal document flow on mobile so they never cover the first result.
+- Photo and batch More menus dismiss on outside click or Escape; Escape restores trigger focus, and only one menu stays open.
 - Batch list, current-photo detail, sticky bulk actions on mobile.
 - Destructive clear uses an in-app dialog.
 
@@ -61,3 +64,20 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Confirmed removal and Clear All invalidate pending imports, clean verification and batch work, reset progress, close obsolete dialogs and discard transient clean results. Old success/error callbacks must not restore photos, results, names, dialogs or downloads, or alter a newer operation.
 - Interrupted batches never download a partial ZIP. This differs from ordinary per-file verification failure, which still excludes only failed outputs and reports their names.
 - Superseded imports discard and revoke late preview URLs. Repeated single cleans and batches publish only their latest operation; dismissing the clean dialog cancels its pending verification.
+
+## 9. Embedded AI and provenance records
+
+- Inspect supported JPEG, PNG and WebP structures and parsed metadata for AI generation/editing declarations, generation settings and recognized tool records.
+- Report C2PA provenance separately: its presence is not evidence of AI generation, and signatures are not cryptographically verified.
+- Absence of records does not prove real photography. Do not classify image pixels or make authenticity claims. Unknown formats and damaged records must not be presented as an absence.
+- Privacy Clean removes recognized C2PA containers as well as existing EXIF/XMP/text metadata without recompressing image payloads. Reinspect both individual and batch output and block unverified saving.
+- Explain before cleaning that C2PA signatures, provenance and edit history are lost. Pixel-based invisible watermarks (including SynthID) are not guaranteed to be removed. Original files remain unchanged.
+- Include before/after record findings in JSON reports. The module is inlined at build time; the release remains one HTML file with no network connections.
+
+## 10. Multi-image JPEG compatibility and explicit SDR export
+
+- Walk bounded, complete concatenated JPEG images (including MPF/HDR gain-map containers) and parse each image sequentially. Include auxiliary metadata in risk findings and clearly label its source image. Non-JPEG trailers and damaged auxiliary images remain unavailable.
+- Do not describe multi-image JPEG cleanup as lossless: MPF/HDR linkage reconstruction is not implemented. Disable that option and provide the explicit primary action “Save an SDR still image.”
+- Before that action, explain loss of HDR brightness and auxiliary images, JPEG recompression, and that the original file is unchanged. Prepare only the primary image for an sRGB Canvas export and re-inspect the resulting single image before saving.
+- Batch ZIP must never silently perform SDR conversion; unsupported multi-image files are omitted and listed for individual handling.
+- The unique-ID chain has inset geometry that leaves stroke padding; the editing-software icon is a simple editor window.

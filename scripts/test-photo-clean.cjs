@@ -15,6 +15,7 @@ function app(language = 'en') {
   const nodes = new Map();
   const downloads = [];
   const blobs = new Map();
+  const canvasExports = [];
   function node(id) {
     if (!nodes.has(id)) {
       const classes = new Set();
@@ -32,7 +33,7 @@ function app(language = 'en') {
   node('app-config').textContent = fs.readFileSync(path.join(root, 'app.config.json'), 'utf8');
   node('build-manifest').textContent = '{}';
   const context = vm.createContext({ document: { getElementById: node, querySelectorAll: () => [],
-    createElement: () => node(Symbol()), addEventListener() {}, documentElement: {}, body: node('body') },
+    createElement: tag => {const el=node(Symbol());if(tag==='canvas'){el.getContext=()=>({drawImage(){}});el.toBlob=callback=>canvasExports.push(callback);}return el;}, addEventListener() {}, documentElement: {}, body: node('body') },
     navigator: { language }, crypto: webcrypto, Blob, File, ArrayBuffer, Uint8Array, DataView, TextDecoder, TextEncoder, Response,
     URL: { createObjectURL(blob) { const id = `blob:${blobs.size}`; blobs.set(id, blob); return id; }, revokeObjectURL() {} },
     setTimeout(fn, delay) { return delay === 0 ? setTimeout(fn, 0) : 0; }, clearTimeout() {},
@@ -40,11 +41,12 @@ function app(language = 'en') {
   let html = fs.readFileSync(path.resolve(root, process.env.APP_HTML || 'src/index.template.html'), 'utf8');
   const payload = html.match(/<script id="self-extract-payload"[^>]*>([\s\S]*?)<\/script>/);
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
+  html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
   context.api.state.fflate = fflate;
-  return { ...context.api, node, downloads };
+  return { ...context.api, node, downloads, runtime:context, canvasExports };
 }
 const file = (bytes, name = 'synthetic.png', type = 'image/png') => new File([bytes], name, { type });
 
@@ -116,8 +118,8 @@ test('WebP retains color profile bytes and truthfully reports its remaining ICC 
   const sensitive = after.metadata.filter(x => a.classifyTag(x));
   assert.ok(sensitive.length > 0, 'existing ICC warnings must not be silently suppressed');
   assert.ok(sensitive.every(x => x.group === 'icc'));
-  assert.equal(after.risk.score, 25);
-  assert.deepEqual(Object.keys(after.risk.found).sort(), ['device', 'identity', 'text']);
+  assert.equal(after.risk.score, 19); // Zero-filled ICC device identifiers are absent; other profile values remain reviewable.
+  assert.deepEqual(Object.keys(after.risk.found).sort(), ['identity', 'text']);
 });
 
 test('JPEG clean retains Orientation 6 without warning for absent JFIF thumbnail', async () => {
@@ -196,4 +198,175 @@ test('batch clean uses the same orientation-preserving WebP path', async () => {
   const parsed = await ExifReader.load(Buffer.from(zip['oriented-clean.webp']), { expanded: true });
   assert.deepEqual(Object.keys(parsed.exif), ['Orientation']);
   assert.equal(parsed.exif.Orientation.value, 6);
+});
+
+function syntheticAiPng() {
+  const base=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=','base64');
+  const data=Buffer.from('parameters\0synthetic test image\nNegative prompt: none\nSteps: 20, Sampler: Euler, CFG scale: 7, Seed: 123');
+  const body=Buffer.concat([Buffer.from('tEXt'),data]);let crc=0xffffffff;
+  for(const byte of body){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+  const len=Buffer.alloc(4),sum=Buffer.alloc(4);len.writeUInt32BE(data.length);sum.writeUInt32BE((crc^0xffffffff)>>>0);
+  return Buffer.concat([base.subarray(0,-12),len,body,sum,base.subarray(-12)]);
+}
+test('AI generation records are detected, cleaned without re-encoding, and verified absent',async()=>{
+ const a=app(),bytes=syntheticAiPng();const result=await clean(a,bytes,'synthetic-ai.png');
+ assert.equal(result.before.aiMetadata.hasAiRecords,true);
+ assert.equal(result.after.aiMetadata.status,'none');assert.equal(result.after.aiMetadata.clean,true);
+ assert.ok(!result.output.includes(Buffer.from('Negative prompt')));
+ assert.deepEqual(result.output,Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=','base64'));
+});
+test('remaining AI records block clean-output verification',async()=>{
+ const a=app();await assert.rejects(a.inspectBlob(new Blob([syntheticAiPng()],{type:'image/png'}),'unremoved.png'),/AI|provenance|埋め込み/);
+});
+test('single clean verification report records AI before and after states',async()=>{
+ const a=app();a.state.items.push(await a.analyzeFile(file(syntheticAiPng())));a.state.current=0;await a.doClean('lossless');
+ assert.ok(a.state.cleanResult);a.node('downloadReportButton').click();const report=JSON.parse(await a.downloads.at(-1).blob.text());
+ assert.equal(report.before.aiMetadata.hasAiRecords,true);assert.equal(report.after.aiMetadata.clean,true);
+});
+test('AI notices explain absence, unsigned provenance and pixel-watermark limitations in both languages',()=>{
+ for(const lang of ['en','ja']){const a=app(lang);assert.notEqual(a.t('aiDisclaimer'),'aiDisclaimer');assert.notEqual(a.t('aiCleanWarning'),'aiCleanWarning');assert.notEqual(a.t('aiNone'),'aiNone');}
+});
+test('structurally invalid metadata is rejected before vendor parsing',async()=>{
+ const a=app();let calls=0;a.state.ExifReader={load(){calls++;throw new Error('unexpected vendor call');}};
+ await assert.rejects(a.analyzeFile(file(Buffer.from([255,216,255,235,0,30,74,80,0]),'truncated.jpg','image/jpeg')));
+ assert.equal(calls,0);
+});
+test('input and output parsing explicitly bound decompressed metadata',async()=>{
+ const a=app(),limits=[];a.state.ExifReader={load(buffer,options){limits.push(options.decompress?.maxDecompressedSize);return ExifReader.load(buffer,options);}};
+ await clean(a,syntheticAiPng(),'synthetic-ai.png');assert.equal(limits.length,2);for(const limit of limits)assert.ok(limit>0&&limit<=16*1024*1024);
+});
+test('vendor suppressed decompression failures remain unavailable analysis',async()=>{
+ const a=app();a.state.ExifReader={load(){return {png:{Comment:{value:'<text using unknown compression>'}}};}};
+ await assert.rejects(a.analyzeFile(file(syntheticAiPng())),/Unable to analyze/);
+});
+
+const aiFixtures = require('../tests/fixtures/ai-metadata.cjs');
+function addProvenance(bytes, kind) {
+ const record=aiFixtures.manifest();
+ if(kind==='jpeg')return Buffer.concat([bytes.subarray(0,2),aiFixtures.jp(record),bytes.subarray(2)]);
+ if(kind==='png')return Buffer.concat([bytes.subarray(0,-12),aiFixtures.chunk('caBX',record),bytes.subarray(-12)]);
+ const out=Buffer.concat([bytes,aiFixtures.riffChunk('C2PA',record)]);out.writeUInt32LE(out.length-8,4);return out;
+}
+for(const [name,kind] of [['control.jpg','jpeg'],['control.png','png'],['browser-orientation-6.webp','webp']]) {
+ test(`real parser and Privacy Clean remove C2PA from ${kind} without changing cleaned image bytes`,async()=>{
+  const a=app(),base=bytesFor(name),input=addProvenance(base,kind),result=await clean(a,input,'c2pa-'+name);
+  assert.equal(result.before.aiMetadata.hasProvenance,true);assert.equal(result.before.aiMetadata.hasAiRecords,false);
+  assert.equal(result.after.aiMetadata.clean,true);assert.equal(result.after.aiMetadata.hasProvenance,false);
+  const control=await clean(a,base,name);assert.deepEqual(result.output,control.output);
+ });
+}
+test('batch cleans AI and C2PA records, and its output passes independent record verification',async()=>{
+ const a=app();a.state.items.push(await a.analyzeFile(file(syntheticAiPng(),'ai.png')));a.state.items.push(await a.analyzeFile(file(addProvenance(bytesFor('control.jpg'),'jpeg'),'provenance.jpg','image/jpeg')));
+ await a.batchClean();assert.equal(a.downloads.length,1);const files=fflate.unzipSync(new Uint8Array(await a.downloads[0].blob.arrayBuffer()));
+ assert.deepEqual(Object.keys(files).sort(),['ai-clean.png','provenance-clean.jpg']);
+ for(const [name,bytes] of Object.entries(files)){const verified=await a.inspectBlob(new Blob([bytes]),name);assert.equal(verified.aiMetadata.clean,true);}
+});
+
+function syntheticMultiJpeg(){return aiFixtures.multiJpeg(addProvenance(bytesFor('control.jpg'),'jpeg'),bytesFor('control.jpg'));}
+test('multiple JPEG input inspects each image and offers explicit SDR export',async()=>{
+ const a=app();const input=syntheticMultiJpeg(),item=await a.analyzeFile(file(input,'synthetic-hdr.jpg','image/jpeg'));
+ assert.equal(item.aiMetadata.multiImage,true);assert.equal(item.aiMetadata.secondaryMetadataInspected,true);assert.equal(item.aiMetadata.hasProvenance,true);
+ assert.equal(item.tagSets.length,2);assert.ok(item.metadata.some(row=>row.imageIndex===1));
+ a.state.items.push(item);a.state.current=0;a.applyLanguage();a.node('cleanButton').click();
+ assert.match(a.node('cleanButton').textContent,/SDR/);assert.equal(a.node('losslessClean').disabled,true);assert.equal(a.node('multiImageWarning').hidden,false);
+ assert.match(a.node('multiImageWarning').textContent,/HDR/);assert.match(a.node('multiImageWarning').textContent,/original/i);
+ assert.match(a.node('deepCleanLabel').textContent,/SDR/);await assert.rejects(a.privacyClean(item),/SDR|multiple|multi/i);
+});
+test('explicit multi-image Deep Clean decodes only primary JPEG, re-encodes, and verifies output',async()=>{
+ const a=app(),input=syntheticMultiJpeg(),item=await a.analyzeFile(file(input,'synthetic-hdr.jpg','image/jpeg'));a.state.items.push(item);a.state.current=0;
+ const decoded=[];a.runtime.createImageBitmap=async(blob)=>{decoded.push(Buffer.from(await blob.arrayBuffer()));return {width:1,height:1,close(){}};};
+ const control=await a.privacyClean(await a.analyzeFile(file(bytesFor('control.jpg'),'control.jpg','image/jpeg')));
+ const pending=a.doClean('deep');await new Promise(r=>setImmediate(r));assert.equal(a.canvasExports.length,1);a.canvasExports[0](control.blob);await pending;
+ assert.equal(decoded.length,1);assert.ok(decoded[0].length<item.aiMetadata.images[0].end);assert.equal(decoded[0].includes(Buffer.from("MPF\0")),false,"decoder input must not retain dangling auxiliary-image references");assert.equal(decoded[0][0],255);assert.equal(decoded[0][1],216);assert.equal(decoded[0].at(-1),217);
+ assert.equal(a.state.cleanResult.result.method,'deep');assert.equal(a.state.cleanResult.after.aiMetadata.clean,true);assert.equal(a.state.cleanResult.after.aiMetadata.multiImage,false);assert.deepEqual(Buffer.from(item.buffer),input);
+});
+test('both languages explicitly distinguish SDR export and HDR loss',async()=>{
+ for(const lang of ['en','ja']){const a=app(lang);assert.notEqual(a.t('multiImageWarning'),'multiImageWarning');assert.match(a.t('multiImageWarning'),/HDR/);assert.match(a.t('exportSdr'),/SDR/);}
+});
+
+test('secondary-only metadata contributes to visible privacy findings',async()=>{
+ const a=app(),secondary=await a.analyzeFile(file(bytesFor('control.jpg'),'secondary.jpg','image/jpeg'));
+ const cleanPrimary=await a.privacyClean(secondary);const primary=Buffer.from(await cleanPrimary.blob.arrayBuffer());
+ const item=await a.analyzeFile(file(aiFixtures.multiJpeg(primary,bytesFor('control.jpg')),'secondary-private.jpg','image/jpeg'));
+ assert.ok(item.metadata.some(row=>row.imageIndex===1&&a.classifyTag(row)));assert.equal(item.risk.score,secondary.risk.score);assert.ok(item.risk.found.gps);
+ assert.equal(item.aiMetadata.secondaryMetadataInspected,true);
+});
+test('bulk ZIP does not silently convert multi-image JPEGs to SDR',async()=>{
+ const a=app();a.state.items.push(await a.analyzeFile(file(syntheticMultiJpeg(),'hdr.jpg','image/jpeg')));
+ a.runtime.createImageBitmap=()=>assert.fail('batch must not re-encode');await a.batchClean();
+ assert.equal(a.downloads.length,0);assert.deepEqual(Array.from(a.state.batchFailures),['hdr.jpg']);
+});
+test('AI tool records stored only in an auxiliary JPEG are inspected',async()=>{
+ const a=app(),cleaned=await a.privacyClean(await a.analyzeFile(file(bytesFor('control.jpg'),'base.jpg','image/jpeg'))),base=Buffer.from(await cleaned.blob.arrayBuffer());
+ const exif=Buffer.from([69,120,105,102,0,0,77,77,0,42,0,0,0,8,0,1,1,49,0,2,0,0,0,8,0,0,0,26,0,0,0,0,...Buffer.from('ComfyUI\0')]);
+ const secondary=Buffer.concat([base.subarray(0,2),aiFixtures.segment(0xe1,exif),base.subarray(2)]);
+ const item=await a.analyzeFile(file(aiFixtures.multiJpeg(base,secondary),'secondary-ai.jpg','image/jpeg'));
+ assert.equal(item.aiMetadata.hasAiRecords,true);assert.ok(item.aiMetadata.records.some(record=>record.kind==='tool'));
+ assert.ok(item.metadata.some(row=>row.imageIndex===1&&row.key==='Software'&&row.value.includes('ComfyUI')));
+});
+
+// Browser-generated from the repository's synthetic MPF fixture; never a user photo.
+test('Canvas-generated standard sRGB ICC fields do not create false privacy findings',async()=>{
+ const a=app(),bytes=fs.readFileSync(path.join(root,'tests/fixtures/browser-sdr-srgb.jpg'));
+ const item=await a.analyzeFile(file(bytes,'canvas-srgb.jpg','image/jpeg'));
+ assert.ok(item.metadata.some(row=>row.group==='icc'&&row.key==='ICC Description'&&row.value==='sRGB'));
+ assert.equal(item.risk.score,0);assert.equal(item.metadata.filter(row=>a.classifyTag(row)).length,0);
+});
+test('custom ICC identifiers, descriptions and copyrights remain privacy-sensitive',()=>{
+ const a=app();for(const [key,value] of [['Device Model Number','Private camera 123'],['Profile Creator','Private owner'],['ICC Description','sRGB with private project notes'],['ICC Copyright','Alice Private']])assert.ok(a.classifyTag({group:'icc',key,value,raw:{value}}),key);
+ assert.ok(a.classifyTag({group:'exif',key:'UserComment',value:'Private user notes',raw:{value:'Private user notes'}}));
+ assert.ok(a.classifyTag({group:'exif',key:'UserComment',value:'sRGB',raw:{value:'sRGB'}}));
+ for(const [key,value] of [['Profile Creator','\0\0\0X'],['Profile Creator','\0\0\0\0Private'],['ICC Description','sRGB\0Private'],['ICC Copyright','Google Inc. 2016 Private']])assert.ok(a.classifyTag({group:'icc',key,value}),key);
+ assert.ok(a.classifyTag({group:'xmp',key:'ICC Description',value:'sRGB'}));
+});
+test('remaining findings after Deep Clean recommend review, not another identical Deep Clean',async()=>{
+ for(const lang of ['en','ja']){const a=app(lang),original=await a.analyzeFile(file(bytesFor('control.jpg'),'control.jpg','image/jpeg'));
+ a.state.cleanResult={original,result:{method:'deep',name:'copy.jpg'},after:{risk:{score:25},metadata:[],hash:'123'}};a.showVerification();
+ assert.equal(a.node('verifySummary').textContent,a.t('stillRiskAfterDeep'));assert.notEqual(a.t('stillRiskAfterDeep'),'stillRiskAfterDeep');}
+});
+
+test('verified-copy notice persists without replacing original findings and stays scoped to its photo',async()=>{
+ for(const language of ['ja','en']){
+  const a=app(language),item=await a.analyzeFile(file(bytesFor('control.jpg'),'source.jpg','image/jpeg'));
+  const untouched=Buffer.from(item.buffer),originalScore=item.risk.score;
+  a.state.items.push(item);a.state.current=0;a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,true);
+  await a.doClean('lossless');assert.ok(a.state.cleanResult);assert.equal(a.node('copyVerificationNotice').hidden,false);
+  assert.equal(a.node('copyVerificationNotice').textContent,a.t('copyVerifiedNotice'));assert.notEqual(a.t('copyVerifiedNotice'),'copyVerifiedNotice');
+  a.resetVerification();a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,false);
+  assert.equal(item.risk.score,originalScore);assert.deepEqual(Buffer.from(item.buffer),untouched);
+  a.state.items.push(await a.analyzeFile(file(bytesFor('control.jpg'),'other.jpg','image/jpeg')));a.state.current=1;a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,true);
+  a.state.current=0;a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,false);
+ }
+});
+test('failed verification never produces a verified-copy notice',async()=>{
+ const a=app(),item=await a.analyzeFile(file(bytesFor('control.jpg'),'broken.jpg','image/jpeg'));
+ item.buffer=new Uint8Array([1,2,3]).buffer;a.state.items.push(item);a.state.current=0;
+ await a.doClean('lossless');a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,true);assert.equal(a.state.cleanResult,null);
+});
+
+test('cancelled cleaning cannot attach a copy-verification notice',async()=>{
+ const a=app(),item=await a.analyzeFile(file(bytesFor('control.jpg'),'cancelled.jpg','image/jpeg'));
+ a.state.items.push(item);a.state.current=0;
+ let release;a.runtime.createImageBitmap=()=>new Promise(resolve=>release=resolve);
+ const pending=a.doClean('deep');a.clearAll();release({width:1,height:1,close(){}});
+ while(!a.canvasExports.length)await new Promise(resolve=>setTimeout(resolve,0));a.canvasExports[0](new Blob([bytesFor('control.jpg')],{type:'image/jpeg'}));await pending;
+ assert.equal(item.clean,null);assert.equal(a.state.items.length,0);assert.equal(a.node('copyVerificationNotice').hidden,true);
+});
+test('photo title and cleaned filename preserve the incoming File.name without numeric renaming',async()=>{
+ for(const name of ['aiueo.png','1000015409.png']){
+  const a=app(),fixture=fixtures.find(x=>x.name.endsWith('.png')),input=file(Buffer.from(fixture.base64,'base64'),name,'image/png');
+  const item=await a.analyzeFile(input);a.state.items.push(item);a.state.current=0;a.renderCurrent();
+  assert.equal(item.file,input);assert.equal(a.node('photoName').textContent,name);
+  const result=await a.privacyClean(item);assert.equal(result.name,name.replace(/\.png$/,'-clean.png'));
+  assert.equal(item.file.name,name);
+ }
+});
+test('photo and optional file inputs allow repeat selection, ignore cancellation and reject non-images',async()=>{
+ for(const id of ['fileInput','documentFileInput']){
+  const a=app(),input=a.node(id),fixture=fixtures.find(x=>x.name.endsWith('.png')),f=file(Buffer.from(fixture.base64,'base64'),'aiueo.png','image/png');
+  input.files=[f];input.value='selected';await input.handlers.change();assert.equal(input.value,'');assert.equal(a.state.items.length,1);
+  input.files=[f];input.value='selected';await input.handlers.change();assert.equal(a.state.items.length,2);assert.equal(input.value,'');
+  input.files=[];await input.handlers.change();assert.equal(a.state.items.length,2);
+  input.files=[file('not an image','notes.txt','text/plain')];await input.handlers.change();assert.equal(a.state.items.length,2);assert.equal(a.node('toast').textContent,a.t('invalidFile'));
+ }
 });

@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.3] - 2026-10-09
+
+### Added
+- Add an optional unfiltered Choose files input while keeping photo selection and existing supported-image validation; preserve the filename supplied by the device/provider.
+- Inspect embedded AI generation/editing and C2PA provenance records locally, without claiming image authenticity or signature verification.
+- Remove recognized C2PA containers during Privacy Clean, verify output records, and include before/after findings in reports.
+- Explain provenance loss and invisible-pixel-watermark limitations before saving a cleaned copy.
+
+### Fixed
+- Keep modal content within the actual dialog height and make long help content scrollable to its final line, with the header and Close action visible.
+- Distinguish original-image findings from the verified cleaned copy, including a persistent per-photo notice and bilingual output-scope explanation.
+- Avoid false privacy warnings for exact standard Canvas sRGB profile fields while retaining warnings for custom ICC values; do not suggest repeating Deep Clean after it has already run.
+- Inspect appended HDR/MPF JPEG images instead of rejecting every valid secondary JPEG as trailing data.
+- Offer an explicitly warned SDR still-image export; preserve the original, inspect auxiliary metadata, and never silently convert batch files or claim HDR cleanup is lossless.
+- Correct the unique-ID icon stroke clipping and replace the editing-software glyph with an editor window.
+
+### Improved
+- Align the header mark with the canonical favicon, simplify the photo-selection icon, and apply the requested Japanese subtitle punctuation.
+- Adopt the requested Japanese headline and match the local-processing badge to the Mini League Desk shield/check icon.
+- Use neutral creation/editing headings and explicitly distinguish provenance-only records from AI-generation information.
+- Simplify the AI output result label by removing the parenthetical recheck wording; preserve explicit original/copy scope and output verification.
+- Refresh the Japanese and English sharing headline and remove the decorative drop-area circle.
+- Replace exposure emojis with consistent accessible green line icons.
+- Keep mobile metadata filters above their results without overlap.
+- Dismiss photo and batch More menus on outside click or Escape, with one menu open at a time.
+
 ## 1.0.2 - 2026-10-09
 
 - Add a genuine English screenshot for the app catalog and documentation.
