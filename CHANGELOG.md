@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2 - 2026-10-09
+
+- Add a genuine English screenshot for the app catalog and documentation.
+- Regenerate the root standalone download from the existing current source, including previously committed lifecycle and metadata-error fixes.
+
 ## 1.0.1 - 2026-10-06
 
 - Preserve WebP display orientation with newly generated Orientation-only EXIF while keeping encoded image, alpha, color and animation data unchanged; remove all original EXIF and XMP.

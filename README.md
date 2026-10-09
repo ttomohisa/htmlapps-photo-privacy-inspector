@@ -10,6 +10,8 @@ A privacy-focused single-HTML app that inspects GPS, capture time, device identi
 
 Unlike a basic EXIF viewer, it explains **what a recipient could learn**, assigns an exposure score, removes metadata into share-ready copies, and then re-scans the output to verify what was actually removed.
 
+![Application screenshot in English](assets/screenshot-en.png)
+
 ## 🚀 Live demo
 
 ### [Open Photo Privacy Inspector on GitHub Pages](https://ttomohisa.github.io/htmlapps-photo-privacy-inspector/)
