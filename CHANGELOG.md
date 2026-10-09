@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.3] - 2026-10-09
+
+### Added
+- Inspect embedded AI generation/editing and C2PA provenance records locally, without claiming image authenticity or signature verification.
+- Remove recognized C2PA containers during Privacy Clean, verify output records, and include before/after findings in reports.
+- Explain provenance loss and invisible-pixel-watermark limitations before saving a cleaned copy.
+
+### Improved
+- Refresh the Japanese and English sharing headline and remove the decorative drop-area circle.
+- Replace exposure emojis with consistent accessible green line icons.
+- Keep mobile metadata filters above their results without overlap.
+- Dismiss photo and batch More menus on outside click or Escape, with one menu open at a time.
+
 ## 1.0.2 - 2026-10-09
 
 - Add a genuine English screenshot for the app catalog and documentation.

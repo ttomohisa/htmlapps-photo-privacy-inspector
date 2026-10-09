@@ -51,6 +51,9 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Mobile-first from 320px.
 - Light-only UI matching `htmlapps-template`.
 - Japanese/English.
+- A concise sharing headline, plain drop-panel background, and green SVG exposure icons keep the interface consistent.
+- Metadata search and filters stay in normal document flow on mobile so they never cover the first result.
+- Photo and batch More menus dismiss on outside click or Escape; Escape restores trigger focus, and only one menu stays open.
 - Batch list, current-photo detail, sticky bulk actions on mobile.
 - Destructive clear uses an in-app dialog.
 
@@ -61,3 +64,12 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Confirmed removal and Clear All invalidate pending imports, clean verification and batch work, reset progress, close obsolete dialogs and discard transient clean results. Old success/error callbacks must not restore photos, results, names, dialogs or downloads, or alter a newer operation.
 - Interrupted batches never download a partial ZIP. This differs from ordinary per-file verification failure, which still excludes only failed outputs and reports their names.
 - Superseded imports discard and revoke late preview URLs. Repeated single cleans and batches publish only their latest operation; dismissing the clean dialog cancels its pending verification.
+
+## 9. Embedded AI and provenance records
+
+- Inspect supported JPEG, PNG and WebP structures and parsed metadata for AI generation/editing declarations, generation settings and recognized tool records.
+- Report C2PA provenance separately: its presence is not evidence of AI generation, and signatures are not cryptographically verified.
+- Absence of records does not prove real photography. Do not classify image pixels or make authenticity claims. Unknown formats and damaged records must not be presented as an absence.
+- Privacy Clean removes recognized C2PA containers as well as existing EXIF/XMP/text metadata without recompressing image payloads. Reinspect both individual and batch output and block unverified saving.
+- Explain before cleaning that C2PA signatures, provenance and edit history are lost. Pixel-based invisible watermarks (including SynthID) are not guaranteed to be removed. Original files remain unchanged.
+- Include before/after record findings in JSON reports. The module is inlined at build time; the release remains one HTML file with no network connections.

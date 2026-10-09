@@ -40,6 +40,7 @@ function app(language = 'en') {
   let html = fs.readFileSync(path.resolve(root, process.env.APP_HTML || 'src/index.template.html'), 'utf8');
   const payload = html.match(/<script id="self-extract-payload"[^>]*>([\s\S]*?)<\/script>/);
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
+  html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
   vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
@@ -196,4 +197,66 @@ test('batch clean uses the same orientation-preserving WebP path', async () => {
   const parsed = await ExifReader.load(Buffer.from(zip['oriented-clean.webp']), { expanded: true });
   assert.deepEqual(Object.keys(parsed.exif), ['Orientation']);
   assert.equal(parsed.exif.Orientation.value, 6);
+});
+
+function syntheticAiPng() {
+  const base=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=','base64');
+  const data=Buffer.from('parameters\0synthetic test image\nNegative prompt: none\nSteps: 20, Sampler: Euler, CFG scale: 7, Seed: 123');
+  const body=Buffer.concat([Buffer.from('tEXt'),data]);let crc=0xffffffff;
+  for(const byte of body){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+  const len=Buffer.alloc(4),sum=Buffer.alloc(4);len.writeUInt32BE(data.length);sum.writeUInt32BE((crc^0xffffffff)>>>0);
+  return Buffer.concat([base.subarray(0,-12),len,body,sum,base.subarray(-12)]);
+}
+test('AI generation records are detected, cleaned without re-encoding, and verified absent',async()=>{
+ const a=app(),bytes=syntheticAiPng();const result=await clean(a,bytes,'synthetic-ai.png');
+ assert.equal(result.before.aiMetadata.hasAiRecords,true);
+ assert.equal(result.after.aiMetadata.status,'none');assert.equal(result.after.aiMetadata.clean,true);
+ assert.ok(!result.output.includes(Buffer.from('Negative prompt')));
+ assert.deepEqual(result.output,Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=','base64'));
+});
+test('remaining AI records block clean-output verification',async()=>{
+ const a=app();await assert.rejects(a.inspectBlob(new Blob([syntheticAiPng()],{type:'image/png'}),'unremoved.png'),/AI|provenance|埋め込み/);
+});
+test('single clean verification report records AI before and after states',async()=>{
+ const a=app();a.state.items.push(await a.analyzeFile(file(syntheticAiPng())));a.state.current=0;await a.doClean('lossless');
+ assert.ok(a.state.cleanResult);a.node('downloadReportButton').click();const report=JSON.parse(await a.downloads.at(-1).blob.text());
+ assert.equal(report.before.aiMetadata.hasAiRecords,true);assert.equal(report.after.aiMetadata.clean,true);
+});
+test('AI notices explain absence, unsigned provenance and pixel-watermark limitations in both languages',()=>{
+ for(const lang of ['en','ja']){const a=app(lang);assert.notEqual(a.t('aiDisclaimer'),'aiDisclaimer');assert.notEqual(a.t('aiCleanWarning'),'aiCleanWarning');assert.notEqual(a.t('aiNone'),'aiNone');}
+});
+test('structurally invalid metadata is rejected before vendor parsing',async()=>{
+ const a=app();let calls=0;a.state.ExifReader={load(){calls++;throw new Error('unexpected vendor call');}};
+ await assert.rejects(a.analyzeFile(file(Buffer.from([255,216,255,235,0,30,74,80,0]),'truncated.jpg','image/jpeg')));
+ assert.equal(calls,0);
+});
+test('input and output parsing explicitly bound decompressed metadata',async()=>{
+ const a=app(),limits=[];a.state.ExifReader={load(buffer,options){limits.push(options.decompress?.maxDecompressedSize);return ExifReader.load(buffer,options);}};
+ await clean(a,syntheticAiPng(),'synthetic-ai.png');assert.equal(limits.length,2);for(const limit of limits)assert.ok(limit>0&&limit<=16*1024*1024);
+});
+test('vendor suppressed decompression failures remain unavailable analysis',async()=>{
+ const a=app();a.state.ExifReader={load(){return {png:{Comment:{value:'<text using unknown compression>'}}};}};
+ await assert.rejects(a.analyzeFile(file(syntheticAiPng())),/Unable to analyze/);
+});
+
+const aiFixtures = require('../tests/fixtures/ai-metadata.cjs');
+function addProvenance(bytes, kind) {
+ const record=aiFixtures.manifest();
+ if(kind==='jpeg')return Buffer.concat([bytes.subarray(0,2),aiFixtures.jp(record),bytes.subarray(2)]);
+ if(kind==='png')return Buffer.concat([bytes.subarray(0,-12),aiFixtures.chunk('caBX',record),bytes.subarray(-12)]);
+ const out=Buffer.concat([bytes,aiFixtures.riffChunk('C2PA',record)]);out.writeUInt32LE(out.length-8,4);return out;
+}
+for(const [name,kind] of [['control.jpg','jpeg'],['control.png','png'],['browser-orientation-6.webp','webp']]) {
+ test(`real parser and Privacy Clean remove C2PA from ${kind} without changing cleaned image bytes`,async()=>{
+  const a=app(),base=bytesFor(name),input=addProvenance(base,kind),result=await clean(a,input,'c2pa-'+name);
+  assert.equal(result.before.aiMetadata.hasProvenance,true);assert.equal(result.before.aiMetadata.hasAiRecords,false);
+  assert.equal(result.after.aiMetadata.clean,true);assert.equal(result.after.aiMetadata.hasProvenance,false);
+  const control=await clean(a,base,name);assert.deepEqual(result.output,control.output);
+ });
+}
+test('batch cleans AI and C2PA records, and its output passes independent record verification',async()=>{
+ const a=app();a.state.items.push(await a.analyzeFile(file(syntheticAiPng(),'ai.png')));a.state.items.push(await a.analyzeFile(file(addProvenance(bytesFor('control.jpg'),'jpeg'),'provenance.jpg','image/jpeg')));
+ await a.batchClean();assert.equal(a.downloads.length,1);const files=fflate.unzipSync(new Uint8Array(await a.downloads[0].blob.arrayBuffer()));
+ assert.deepEqual(Object.keys(files).sort(),['ai-clean.png','provenance-clean.jpg']);
+ for(const [name,bytes] of Object.entries(files)){const verified=await a.inspectBlob(new Blob([bytes]),name);assert.equal(verified.aiMetadata.clean,true);}
 });

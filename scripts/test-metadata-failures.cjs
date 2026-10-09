@@ -43,6 +43,7 @@ function app(language = 'en') {
   let html = fs.readFileSync(path.resolve(root, process.env.APP_HTML || 'src/index.template.html'), 'utf8');
   const payload = html.match(/<script id="self-extract-payload"[^>]*>([\s\S]*?)<\/script>/);
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
+  html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
   vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;

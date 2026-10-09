@@ -18,6 +18,12 @@ Unlike a basic EXIF viewer, it explains **what a recipient could learn**, assign
 
 After the initial HTML is loaded, metadata parsing, hashing, cleaning, verification, and ZIP creation run locally on your device. Selected images and GPS coordinates are not sent by the app.
 
+## Embedded AI and provenance records
+
+The app checks supported JPEG, PNG and WebP metadata for AI generation/editing declarations, tool names and generation settings. It also detects C2PA provenance containers, separately from AI records. This is a metadata inspection, not a visual AI detector or cryptographic signature verifier. Records can be changed; their absence does not prove a photo is real.
+
+Cleaning removes supported embedded records from the saved copy and checks the result again. **C2PA signatures, provenance and edit history will be lost.** Removal of invisible pixel watermarks such as SynthID is not guaranteed. Unknown proprietary metadata may remain; the original file is unchanged.
+
 ## Features
 
 - Inspect GPS, timestamps, camera/phone model, serial IDs, creator/owner, software, comments, unique IDs, and thumbnails
