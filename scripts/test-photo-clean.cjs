@@ -43,7 +43,7 @@ function app(language = 'en') {
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
   html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
   context.api.state.fflate = fflate;
   return { ...context.api, node, downloads, runtime:context, canvasExports };
@@ -118,8 +118,8 @@ test('WebP retains color profile bytes and truthfully reports its remaining ICC 
   const sensitive = after.metadata.filter(x => a.classifyTag(x));
   assert.ok(sensitive.length > 0, 'existing ICC warnings must not be silently suppressed');
   assert.ok(sensitive.every(x => x.group === 'icc'));
-  assert.equal(after.risk.score, 25);
-  assert.deepEqual(Object.keys(after.risk.found).sort(), ['device', 'identity', 'text']);
+  assert.equal(after.risk.score, 19); // Zero-filled ICC device identifiers are absent; other profile values remain reviewable.
+  assert.deepEqual(Object.keys(after.risk.found).sort(), ['identity', 'text']);
 });
 
 test('JPEG clean retains Orientation 6 without warning for absent JFIF thumbnail', async () => {
@@ -303,4 +303,24 @@ test('AI tool records stored only in an auxiliary JPEG are inspected',async()=>{
  const item=await a.analyzeFile(file(aiFixtures.multiJpeg(base,secondary),'secondary-ai.jpg','image/jpeg'));
  assert.equal(item.aiMetadata.hasAiRecords,true);assert.ok(item.aiMetadata.records.some(record=>record.kind==='tool'));
  assert.ok(item.metadata.some(row=>row.imageIndex===1&&row.key==='Software'&&row.value.includes('ComfyUI')));
+});
+
+// Browser-generated from the repository's synthetic MPF fixture; never a user photo.
+test('Canvas-generated standard sRGB ICC fields do not create false privacy findings',async()=>{
+ const a=app(),bytes=fs.readFileSync(path.join(root,'tests/fixtures/browser-sdr-srgb.jpg'));
+ const item=await a.analyzeFile(file(bytes,'canvas-srgb.jpg','image/jpeg'));
+ assert.ok(item.metadata.some(row=>row.group==='icc'&&row.key==='ICC Description'&&row.value==='sRGB'));
+ assert.equal(item.risk.score,0);assert.equal(item.metadata.filter(row=>a.classifyTag(row)).length,0);
+});
+test('custom ICC identifiers, descriptions and copyrights remain privacy-sensitive',()=>{
+ const a=app();for(const [key,value] of [['Device Model Number','Private camera 123'],['Profile Creator','Private owner'],['ICC Description','sRGB with private project notes'],['ICC Copyright','Alice Private']])assert.ok(a.classifyTag({group:'icc',key,value,raw:{value}}),key);
+ assert.ok(a.classifyTag({group:'exif',key:'UserComment',value:'Private user notes',raw:{value:'Private user notes'}}));
+ assert.ok(a.classifyTag({group:'exif',key:'UserComment',value:'sRGB',raw:{value:'sRGB'}}));
+ for(const [key,value] of [['Profile Creator','\0\0\0X'],['Profile Creator','\0\0\0\0Private'],['ICC Description','sRGB\0Private'],['ICC Copyright','Google Inc. 2016 Private']])assert.ok(a.classifyTag({group:'icc',key,value}),key);
+ assert.ok(a.classifyTag({group:'xmp',key:'ICC Description',value:'sRGB'}));
+});
+test('remaining findings after Deep Clean recommend review, not another identical Deep Clean',async()=>{
+ for(const lang of ['en','ja']){const a=app(lang),original=await a.analyzeFile(file(bytesFor('control.jpg'),'control.jpg','image/jpeg'));
+ a.state.cleanResult={original,result:{method:'deep',name:'copy.jpg'},after:{risk:{score:25},metadata:[],hash:'123'}};a.showVerification();
+ assert.equal(a.node('verifySummary').textContent,a.t('stillRiskAfterDeep'));assert.notEqual(a.t('stillRiskAfterDeep'),'stillRiskAfterDeep');}
 });
