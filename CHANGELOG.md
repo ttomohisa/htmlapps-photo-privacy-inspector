@@ -8,6 +8,7 @@
 - Explain provenance loss and invisible-pixel-watermark limitations before saving a cleaned copy.
 
 ### Fixed
+- Distinguish original-image findings from the verified cleaned copy, including a persistent per-photo notice and bilingual output-scope explanation.
 - Avoid false privacy warnings for exact standard Canvas sRGB profile fields while retaining warnings for custom ICC values; do not suggest repeating Deep Clean after it has already run.
 - Inspect appended HDR/MPF JPEG images instead of rejecting every valid secondary JPEG as trailing data.
 - Offer an explicitly warned SDR still-image export; preserve the original, inspect auxiliary metadata, and never silently convert batch files or claim HDR cleanup is lossless.

@@ -37,6 +37,7 @@ Complete concatenated JPEG images, including MPF/HDR gain-map containers, are in
 - Lossless Privacy Clean for JPEG / PNG / WebP
 - Canvas-based Deep Clean fallback
 - Automatic post-clean re-inspection with Before → After verification
+- Explicit original-image labels and a per-photo notice after a cleaned copy is verified; the main view keeps the original findings and does not claim a download has occurred.
 - Batch analysis and risk triage
 - Batch Privacy Clean to ZIP
 - Per-photo and batch JSON privacy reports

@@ -41,3 +41,9 @@ test('unique-ID icon uses inset horizontal links and software uses an editor win
  assert.ok(a.api.icons.software.includes('<rect x="3" y="4" width="18" height="16" rx="2"/>'));
  assert.ok(a.api.icons.software.includes('M3 9h18'));
 });
+
+test('original inspection and output verification have distinct bilingual labels',()=>{
+ const a=app();assert.match(html,/id="aiRecordsTitle" data-i18n="originalAiTitle"/);
+ for(const lang of ['ja','en'])for(const key of ['originalAiTitle','originalMetadata','copyVerifiedNotice','copyVerificationScope'])assert.ok(a.api.dict[lang][key],lang+' '+key);
+ assert.match(html,/data-i18n="originalMetadata"/);assert.match(html,/data-i18n="copyVerificationScope"/);
+});

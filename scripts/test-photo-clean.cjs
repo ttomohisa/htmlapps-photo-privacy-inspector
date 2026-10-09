@@ -43,7 +43,7 @@ function app(language = 'en') {
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
   html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
   context.api.state.fflate = fflate;
   return { ...context.api, node, downloads, runtime:context, canvasExports };
@@ -323,4 +323,32 @@ test('remaining findings after Deep Clean recommend review, not another identica
  for(const lang of ['en','ja']){const a=app(lang),original=await a.analyzeFile(file(bytesFor('control.jpg'),'control.jpg','image/jpeg'));
  a.state.cleanResult={original,result:{method:'deep',name:'copy.jpg'},after:{risk:{score:25},metadata:[],hash:'123'}};a.showVerification();
  assert.equal(a.node('verifySummary').textContent,a.t('stillRiskAfterDeep'));assert.notEqual(a.t('stillRiskAfterDeep'),'stillRiskAfterDeep');}
+});
+
+test('verified-copy notice persists without replacing original findings and stays scoped to its photo',async()=>{
+ for(const language of ['ja','en']){
+  const a=app(language),item=await a.analyzeFile(file(bytesFor('control.jpg'),'source.jpg','image/jpeg'));
+  const untouched=Buffer.from(item.buffer),originalScore=item.risk.score;
+  a.state.items.push(item);a.state.current=0;a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,true);
+  await a.doClean('lossless');assert.ok(a.state.cleanResult);assert.equal(a.node('copyVerificationNotice').hidden,false);
+  assert.equal(a.node('copyVerificationNotice').textContent,a.t('copyVerifiedNotice'));assert.notEqual(a.t('copyVerifiedNotice'),'copyVerifiedNotice');
+  a.resetVerification();a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,false);
+  assert.equal(item.risk.score,originalScore);assert.deepEqual(Buffer.from(item.buffer),untouched);
+  a.state.items.push(await a.analyzeFile(file(bytesFor('control.jpg'),'other.jpg','image/jpeg')));a.state.current=1;a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,true);
+  a.state.current=0;a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,false);
+ }
+});
+test('failed verification never produces a verified-copy notice',async()=>{
+ const a=app(),item=await a.analyzeFile(file(bytesFor('control.jpg'),'broken.jpg','image/jpeg'));
+ item.buffer=new Uint8Array([1,2,3]).buffer;a.state.items.push(item);a.state.current=0;
+ await a.doClean('lossless');a.renderCurrent();assert.equal(a.node('copyVerificationNotice').hidden,true);assert.equal(a.state.cleanResult,null);
+});
+
+test('cancelled cleaning cannot attach a copy-verification notice',async()=>{
+ const a=app(),item=await a.analyzeFile(file(bytesFor('control.jpg'),'cancelled.jpg','image/jpeg'));
+ a.state.items.push(item);a.state.current=0;
+ let release;a.runtime.createImageBitmap=()=>new Promise(resolve=>release=resolve);
+ const pending=a.doClean('deep');a.clearAll();release({width:1,height:1,close(){}});
+ while(!a.canvasExports.length)await new Promise(resolve=>setTimeout(resolve,0));a.canvasExports[0](new Blob([bytesFor('control.jpg')],{type:'image/jpeg'}));await pending;
+ assert.equal(item.clean,null);assert.equal(a.state.items.length,0);assert.equal(a.node('copyVerificationNotice').hidden,true);
 });
