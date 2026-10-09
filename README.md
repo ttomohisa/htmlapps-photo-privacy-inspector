@@ -36,6 +36,7 @@ Complete concatenated JPEG images, including MPF/HDR gain-map containers, are in
 - Offline coordinate visualization with no map-tile requests
 - Lossless Privacy Clean for JPEG / PNG / WebP
 - Canvas-based Deep Clean fallback
+- Optional **Choose files** input alongside photo selection; filenames are used exactly as supplied by the device/provider, without guessing the original name.
 - Automatic post-clean re-inspection with Before → After verification
 - Explicit original-image labels and a per-photo notice after a cleaned copy is verified; the main view keeps the original findings and does not claim a download has occurred.
 - Batch analysis and risk triage

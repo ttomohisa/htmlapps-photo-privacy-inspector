@@ -352,3 +352,21 @@ test('cancelled cleaning cannot attach a copy-verification notice',async()=>{
  while(!a.canvasExports.length)await new Promise(resolve=>setTimeout(resolve,0));a.canvasExports[0](new Blob([bytesFor('control.jpg')],{type:'image/jpeg'}));await pending;
  assert.equal(item.clean,null);assert.equal(a.state.items.length,0);assert.equal(a.node('copyVerificationNotice').hidden,true);
 });
+test('photo title and cleaned filename preserve the incoming File.name without numeric renaming',async()=>{
+ for(const name of ['aiueo.png','1000015409.png']){
+  const a=app(),fixture=fixtures.find(x=>x.name.endsWith('.png')),input=file(Buffer.from(fixture.base64,'base64'),name,'image/png');
+  const item=await a.analyzeFile(input);a.state.items.push(item);a.state.current=0;a.renderCurrent();
+  assert.equal(item.file,input);assert.equal(a.node('photoName').textContent,name);
+  const result=await a.privacyClean(item);assert.equal(result.name,name.replace(/\.png$/,'-clean.png'));
+  assert.equal(item.file.name,name);
+ }
+});
+test('photo and optional file inputs allow repeat selection, ignore cancellation and reject non-images',async()=>{
+ for(const id of ['fileInput','documentFileInput']){
+  const a=app(),input=a.node(id),fixture=fixtures.find(x=>x.name.endsWith('.png')),f=file(Buffer.from(fixture.base64,'base64'),'aiueo.png','image/png');
+  input.files=[f];input.value='selected';await input.handlers.change();assert.equal(input.value,'');assert.equal(a.state.items.length,1);
+  input.files=[f];input.value='selected';await input.handlers.change();assert.equal(a.state.items.length,2);assert.equal(input.value,'');
+  input.files=[];await input.handlers.change();assert.equal(a.state.items.length,2);
+  input.files=[file('not an image','notes.txt','text/plain')];await input.handlers.change();assert.equal(a.state.items.length,2);assert.equal(a.node('toast').textContent,a.t('invalidFile'));
+ }
+});

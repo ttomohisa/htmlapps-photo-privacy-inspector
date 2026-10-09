@@ -47,3 +47,11 @@ test('original inspection and output verification have distinct bilingual labels
  for(const lang of ['ja','en'])for(const key of ['originalAiTitle','originalMetadata','copyVerifiedNotice','copyVerificationScope'])assert.ok(a.api.dict[lang][key],lang+' '+key);
  assert.match(html,/data-i18n="originalMetadata"/);assert.match(html,/data-i18n="copyVerificationScope"/);
 });
+test('AI output result omits the confusing recheck parenthetical',()=>{
+ const a=app();assert.equal(a.api.dict.ja.aiVerified,'対応する埋め込み記録なし');assert.equal(a.api.dict.en.aiVerified,'No supported embedded records');
+});
+test('optional file picker leaves accept unset and remains reachable before and after photo import',()=>{
+ const tag=html.match(/<input\b[^>]*id="documentFileInput"[^>]*>/)?.[0];assert.ok(tag);assert.doesNotMatch(tag,/\baccept\s*=/);assert.match(tag,/\bmultiple\b/);
+ assert.match(html,/id="chooseFilesButton"/);assert.match(html,/id="addFilesButton"/);
+ const a=app();for(const lang of ['ja','en'])assert.ok(a.api.dict[lang].chooseFiles&&a.api.dict[lang].filePickerHelp);
+});

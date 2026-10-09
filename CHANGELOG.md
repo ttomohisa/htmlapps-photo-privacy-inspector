@@ -3,6 +3,7 @@
 ## [1.0.3] - 2026-10-09
 
 ### Added
+- Add an optional unfiltered Choose files input while keeping photo selection and existing supported-image validation; preserve the filename supplied by the device/provider.
 - Inspect embedded AI generation/editing and C2PA provenance records locally, without claiming image authenticity or signature verification.
 - Remove recognized C2PA containers during Privacy Clean, verify output records, and include before/after findings in reports.
 - Explain provenance loss and invisible-pixel-watermark limitations before saving a cleaned copy.
@@ -15,6 +16,7 @@
 - Correct the unique-ID icon stroke clipping and replace the editing-software glyph with an editor window.
 
 ### Improved
+- Simplify the AI output result label by removing the parenthetical recheck wording; preserve explicit original/copy scope and output verification.
 - Refresh the Japanese and English sharing headline and remove the decorative drop-area circle.
 - Replace exposure emojis with consistent accessible green line icons.
 - Keep mobile metadata filters above their results without overlap.
