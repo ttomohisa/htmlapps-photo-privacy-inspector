@@ -17,6 +17,7 @@
 - Correct the unique-ID icon stroke clipping and replace the editing-software glyph with an editor window.
 
 ### Improved
+- Align the header mark with the canonical favicon, simplify the photo-selection icon, and apply the requested Japanese subtitle punctuation.
 - Adopt the requested Japanese headline and match the local-processing badge to the Mini League Desk shield/check icon.
 - Use neutral creation/editing headings and explicitly distinguish provenance-only records from AI-generation information.
 - Simplify the AI output result label by removing the parenthetical recheck wording; preserve explicit original/copy scope and output verification.

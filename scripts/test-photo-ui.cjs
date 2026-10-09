@@ -80,3 +80,15 @@ test('local-processing badge matches the Mini League Desk shield reference',()=>
  assert.match(svg,/stroke-width="1.9"/);assert.match(svg,/stroke-linecap="round"/);assert.match(svg,/stroke-linejoin="round"/);assert.match(svg,/aria-hidden="true"/);
  assert.ok(svg.includes('d="M12 3 5 6v5c0 4.6 2.8 8 7 10 4.2-2 7-5.4 7-10V6z"'));assert.ok(svg.includes('d="m9 12 2 2 4-5"'));
 });
+test('header subtitle uses the requested Japanese punctuation without changing English',()=>{
+ const a=app();assert.equal(a.api.dict.ja.brandMeta,'写真に隠れた情報を共有前にチェック');assert.equal(a.api.dict.en.brandMeta,'Check hidden photo data before sharing');
+});
+test('header mark reuses the canonical favicon artwork at full badge size',()=>{
+ const canonical=fs.readFileSync(path.join(root,'assets/favicon.svg'),'utf8').replace(/\s+/g,' ').trim();
+ const mark=html.match(/<div class="brand-mark"[^>]*>(<svg[\s\S]*?<\/svg>)/)?.[1].replace(/\s+/g,' ').trim();assert.equal(mark,canonical);
+ const style=html.match(/\.brand-mark svg\s*\{([^}]+)\}/)?.[1]||'';assert.match(style,/width:100%/);assert.match(style,/height:100%/);
+});
+test('photo chooser uses a rounded image-plus icon with separate padded addition mark',()=>{
+ const svg=html.match(/<span class="drop-icon">(<svg[\s\S]*?<\/svg>)/)?.[1]||'';assert.match(svg,/stroke-linecap="round"/);assert.match(svg,/stroke-linejoin="round"/);assert.match(svg,/aria-hidden="true"/);
+ assert.ok(svg.includes('M13 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-8'));assert.ok(svg.includes('M18 3v6m-3-3h6'));
+});
