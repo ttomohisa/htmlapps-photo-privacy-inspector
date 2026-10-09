@@ -16,6 +16,7 @@
 - Correct the unique-ID icon stroke clipping and replace the editing-software glyph with an editor window.
 
 ### Improved
+- Use neutral creation/editing headings and explicitly distinguish provenance-only records from AI-generation information.
 - Simplify the AI output result label by removing the parenthetical recheck wording; preserve explicit original/copy scope and output verification.
 - Refresh the Japanese and English sharing headline and remove the decorative drop-area circle.
 - Replace exposure emojis with consistent accessible green line icons.

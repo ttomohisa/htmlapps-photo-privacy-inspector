@@ -20,7 +20,7 @@ function app() {
   const context=vm.createContext({document,navigator:{language:'en'},console,TextDecoder,TextEncoder,Uint8Array,ArrayBuffer,DataView,setTimeout(){},clearTimeout(){},atob,btoa});
   html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script=[...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={dict,renderExposure,icons};})();'),context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={dict,renderExposure,renderAiRecords,icons};})();'),context);
   return {node,menus,api:context.api,get focused(){return focused;},dispatch(type,event){for(const fn of events[type]||[])fn(event);}};
 }
 test('approved headline stays synchronized in Japanese and English',()=>{const a=app();assert.equal(a.api.dict.ja.introTitle,'写真だけを、シェアしよう。');assert.equal(a.api.dict.en.introTitle,'Share the photo. Keep the private details.');});
@@ -57,4 +57,15 @@ test('optional file picker leaves accept unset and remains reachable before and 
 });
 test('copy notice uses ordinary checked-information wording without recheck jargon',()=>{
  const a=app();assert.equal(a.api.dict.ja.copyVerifiedNotice,'保存用コピーの情報を確認しました。元画像は変更していません。');assert.equal(a.api.dict.en.copyVerifiedNotice,"The copy’s information has been checked. The original is unchanged.");
+});
+
+test('creation and editing headings are neutral while provenance alone is explicitly not an AI verdict',()=>{
+ const a=app();assert.equal(a.api.dict.ja.originalAiTitle,'元画像の作成・編集情報');assert.equal(a.api.dict.en.originalAiTitle,'Creation and editing information in the original');
+ assert.equal(a.api.dict.ja.aiTitle,'画像の作成・編集情報');assert.equal(a.api.dict.en.aiTitle,'Image creation and editing information');
+ assert.match(a.api.dict.ja.aiProvenance,/AI生成を示すものではありません/);assert.match(a.api.dict.en.aiProvenance,/does not indicate AI generation/);
+ for(const [hasAiRecords,hasProvenance,key] of [[false,true,'aiProvenance'],[false,false,'aiNone'],[true,false,'aiFound'],[true,true,'aiFound']]){
+  a.api.renderAiRecords({aiMetadata:{status:hasAiRecords||hasProvenance?'records':'none',hasAiRecords,hasProvenance,records:[]}});
+  assert.equal(a.node('aiRecordsStatus').textContent,a.api.dict.en[key]);
+ }
+ for(const status of ['error','unknown']){a.api.renderAiRecords({aiMetadata:{status,records:[]}});assert.equal(a.node('aiRecordsStatus').textContent,a.api.dict.en[status==='error'?'aiError':'aiUnknown']);}
 });
