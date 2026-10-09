@@ -55,3 +55,6 @@ test('optional file picker leaves accept unset and remains reachable before and 
  assert.match(html,/id="chooseFilesButton"/);assert.match(html,/id="addFilesButton"/);
  const a=app();for(const lang of ['ja','en'])assert.ok(a.api.dict[lang].chooseFiles&&a.api.dict[lang].filePickerHelp);
 });
+test('copy notice uses ordinary checked-information wording without recheck jargon',()=>{
+ const a=app();assert.equal(a.api.dict.ja.copyVerifiedNotice,'保存用コピーの情報を確認しました。元画像は変更していません。');assert.equal(a.api.dict.en.copyVerifiedNotice,"The copy’s information has been checked. The original is unchanged.");
+});
