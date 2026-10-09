@@ -15,6 +15,7 @@ function app(language = 'en') {
   const nodes = new Map();
   const downloads = [];
   const blobs = new Map();
+  const canvasExports = [];
   function node(id) {
     if (!nodes.has(id)) {
       const classes = new Set();
@@ -32,7 +33,7 @@ function app(language = 'en') {
   node('app-config').textContent = fs.readFileSync(path.join(root, 'app.config.json'), 'utf8');
   node('build-manifest').textContent = '{}';
   const context = vm.createContext({ document: { getElementById: node, querySelectorAll: () => [],
-    createElement: () => node(Symbol()), addEventListener() {}, documentElement: {}, body: node('body') },
+    createElement: tag => {const el=node(Symbol());if(tag==='canvas'){el.getContext=()=>({drawImage(){}});el.toBlob=callback=>canvasExports.push(callback);}return el;}, addEventListener() {}, documentElement: {}, body: node('body') },
     navigator: { language }, crypto: webcrypto, Blob, File, ArrayBuffer, Uint8Array, DataView, TextDecoder, TextEncoder, Response,
     URL: { createObjectURL(blob) { const id = `blob:${blobs.size}`; blobs.set(id, blob); return id; }, revokeObjectURL() {} },
     setTimeout(fn, delay) { return delay === 0 ? setTimeout(fn, 0) : 0; }, clearTimeout() {},
@@ -45,7 +46,7 @@ function app(language = 'en') {
   vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
   context.api.state.fflate = fflate;
-  return { ...context.api, node, downloads };
+  return { ...context.api, node, downloads, runtime:context, canvasExports };
 }
 const file = (bytes, name = 'synthetic.png', type = 'image/png') => new File([bytes], name, { type });
 
@@ -259,4 +260,47 @@ test('batch cleans AI and C2PA records, and its output passes independent record
  await a.batchClean();assert.equal(a.downloads.length,1);const files=fflate.unzipSync(new Uint8Array(await a.downloads[0].blob.arrayBuffer()));
  assert.deepEqual(Object.keys(files).sort(),['ai-clean.png','provenance-clean.jpg']);
  for(const [name,bytes] of Object.entries(files)){const verified=await a.inspectBlob(new Blob([bytes]),name);assert.equal(verified.aiMetadata.clean,true);}
+});
+
+function syntheticMultiJpeg(){return aiFixtures.multiJpeg(addProvenance(bytesFor('control.jpg'),'jpeg'),bytesFor('control.jpg'));}
+test('multiple JPEG input inspects each image and offers explicit SDR export',async()=>{
+ const a=app();const input=syntheticMultiJpeg(),item=await a.analyzeFile(file(input,'synthetic-hdr.jpg','image/jpeg'));
+ assert.equal(item.aiMetadata.multiImage,true);assert.equal(item.aiMetadata.secondaryMetadataInspected,true);assert.equal(item.aiMetadata.hasProvenance,true);
+ assert.equal(item.tagSets.length,2);assert.ok(item.metadata.some(row=>row.imageIndex===1));
+ a.state.items.push(item);a.state.current=0;a.applyLanguage();a.node('cleanButton').click();
+ assert.match(a.node('cleanButton').textContent,/SDR/);assert.equal(a.node('losslessClean').disabled,true);assert.equal(a.node('multiImageWarning').hidden,false);
+ assert.match(a.node('multiImageWarning').textContent,/HDR/);assert.match(a.node('multiImageWarning').textContent,/original/i);
+ assert.match(a.node('deepCleanLabel').textContent,/SDR/);await assert.rejects(a.privacyClean(item),/SDR|multiple|multi/i);
+});
+test('explicit multi-image Deep Clean decodes only primary JPEG, re-encodes, and verifies output',async()=>{
+ const a=app(),input=syntheticMultiJpeg(),item=await a.analyzeFile(file(input,'synthetic-hdr.jpg','image/jpeg'));a.state.items.push(item);a.state.current=0;
+ const decoded=[];a.runtime.createImageBitmap=async(blob)=>{decoded.push(Buffer.from(await blob.arrayBuffer()));return {width:1,height:1,close(){}};};
+ const control=await a.privacyClean(await a.analyzeFile(file(bytesFor('control.jpg'),'control.jpg','image/jpeg')));
+ const pending=a.doClean('deep');await new Promise(r=>setImmediate(r));assert.equal(a.canvasExports.length,1);a.canvasExports[0](control.blob);await pending;
+ assert.equal(decoded.length,1);assert.ok(decoded[0].length<item.aiMetadata.images[0].end);assert.equal(decoded[0].includes(Buffer.from("MPF\0")),false,"decoder input must not retain dangling auxiliary-image references");assert.equal(decoded[0][0],255);assert.equal(decoded[0][1],216);assert.equal(decoded[0].at(-1),217);
+ assert.equal(a.state.cleanResult.result.method,'deep');assert.equal(a.state.cleanResult.after.aiMetadata.clean,true);assert.equal(a.state.cleanResult.after.aiMetadata.multiImage,false);assert.deepEqual(Buffer.from(item.buffer),input);
+});
+test('both languages explicitly distinguish SDR export and HDR loss',async()=>{
+ for(const lang of ['en','ja']){const a=app(lang);assert.notEqual(a.t('multiImageWarning'),'multiImageWarning');assert.match(a.t('multiImageWarning'),/HDR/);assert.match(a.t('exportSdr'),/SDR/);}
+});
+
+test('secondary-only metadata contributes to visible privacy findings',async()=>{
+ const a=app(),secondary=await a.analyzeFile(file(bytesFor('control.jpg'),'secondary.jpg','image/jpeg'));
+ const cleanPrimary=await a.privacyClean(secondary);const primary=Buffer.from(await cleanPrimary.blob.arrayBuffer());
+ const item=await a.analyzeFile(file(aiFixtures.multiJpeg(primary,bytesFor('control.jpg')),'secondary-private.jpg','image/jpeg'));
+ assert.ok(item.metadata.some(row=>row.imageIndex===1&&a.classifyTag(row)));assert.equal(item.risk.score,secondary.risk.score);assert.ok(item.risk.found.gps);
+ assert.equal(item.aiMetadata.secondaryMetadataInspected,true);
+});
+test('bulk ZIP does not silently convert multi-image JPEGs to SDR',async()=>{
+ const a=app();a.state.items.push(await a.analyzeFile(file(syntheticMultiJpeg(),'hdr.jpg','image/jpeg')));
+ a.runtime.createImageBitmap=()=>assert.fail('batch must not re-encode');await a.batchClean();
+ assert.equal(a.downloads.length,0);assert.deepEqual(Array.from(a.state.batchFailures),['hdr.jpg']);
+});
+test('AI tool records stored only in an auxiliary JPEG are inspected',async()=>{
+ const a=app(),cleaned=await a.privacyClean(await a.analyzeFile(file(bytesFor('control.jpg'),'base.jpg','image/jpeg'))),base=Buffer.from(await cleaned.blob.arrayBuffer());
+ const exif=Buffer.from([69,120,105,102,0,0,77,77,0,42,0,0,0,8,0,1,1,49,0,2,0,0,0,8,0,0,0,26,0,0,0,0,...Buffer.from('ComfyUI\0')]);
+ const secondary=Buffer.concat([base.subarray(0,2),aiFixtures.segment(0xe1,exif),base.subarray(2)]);
+ const item=await a.analyzeFile(file(aiFixtures.multiJpeg(base,secondary),'secondary-ai.jpg','image/jpeg'));
+ assert.equal(item.aiMetadata.hasAiRecords,true);assert.ok(item.aiMetadata.records.some(record=>record.kind==='tool'));
+ assert.ok(item.metadata.some(row=>row.imageIndex===1&&row.key==='Software'&&row.value.includes('ComfyUI')));
 });

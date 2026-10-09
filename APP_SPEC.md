@@ -73,3 +73,11 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Privacy Clean removes recognized C2PA containers as well as existing EXIF/XMP/text metadata without recompressing image payloads. Reinspect both individual and batch output and block unverified saving.
 - Explain before cleaning that C2PA signatures, provenance and edit history are lost. Pixel-based invisible watermarks (including SynthID) are not guaranteed to be removed. Original files remain unchanged.
 - Include before/after record findings in JSON reports. The module is inlined at build time; the release remains one HTML file with no network connections.
+
+## 10. Multi-image JPEG compatibility and explicit SDR export
+
+- Walk bounded, complete concatenated JPEG images (including MPF/HDR gain-map containers) and parse each image sequentially. Include auxiliary metadata in risk findings and clearly label its source image. Non-JPEG trailers and damaged auxiliary images remain unavailable.
+- Do not describe multi-image JPEG cleanup as lossless: MPF/HDR linkage reconstruction is not implemented. Disable that option and provide the explicit primary action “Save an SDR still image.”
+- Before that action, explain loss of HDR brightness and auxiliary images, JPEG recompression, and that the original file is unchanged. Prepare only the primary image for an sRGB Canvas export and re-inspect the resulting single image before saving.
+- Batch ZIP must never silently perform SDR conversion; unsupported multi-image files are omitted and listed for individual handling.
+- The unique-ID chain has inset geometry that leaves stroke padding; the editing-software icon is a simple editor window.

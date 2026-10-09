@@ -7,6 +7,11 @@
 - Remove recognized C2PA containers during Privacy Clean, verify output records, and include before/after findings in reports.
 - Explain provenance loss and invisible-pixel-watermark limitations before saving a cleaned copy.
 
+### Fixed
+- Inspect appended HDR/MPF JPEG images instead of rejecting every valid secondary JPEG as trailing data.
+- Offer an explicitly warned SDR still-image export; preserve the original, inspect auxiliary metadata, and never silently convert batch files or claim HDR cleanup is lossless.
+- Correct the unique-ID icon stroke clipping and replace the editing-software glyph with an editor window.
+
 ### Improved
 - Refresh the Japanese and English sharing headline and remove the decorative drop-area circle.
 - Replace exposure emojis with consistent accessible green line icons.

@@ -20,7 +20,7 @@ function app() {
   const context=vm.createContext({document,navigator:{language:'en'},console,TextDecoder,TextEncoder,Uint8Array,ArrayBuffer,DataView,setTimeout(){},clearTimeout(){},atob,btoa});
   html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script=[...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={dict,renderExposure};})();'),context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={dict,renderExposure,icons};})();'),context);
   return {node,menus,api:context.api,get focused(){return focused;},dispatch(type,event){for(const fn of events[type]||[])fn(event);}};
 }
 test('approved headline stays synchronized in Japanese and English',()=>{const a=app();assert.equal(a.api.dict.ja.introTitle,'写真だけを、シェアしよう。');assert.equal(a.api.dict.en.introTitle,'Share the photo. Keep the private details.');});
@@ -33,3 +33,11 @@ for(const index of [0,1]) {
  test(`menu ${index}: opening closes the other menu`,()=>{const a=app(),m=a.menus[index];a.menus.forEach(menu=>menu.open=true);m.handlers.toggle?.();assert.equal(m.open,true);assert.equal(a.menus[1-index].open,false);});
 }
 test('unrelated keys leave menus open and Escape with none open does not steal focus',()=>{const a=app();a.menus[0].open=true;a.dispatch('keydown',{key:'ArrowDown'});assert.equal(a.menus[0].open,true);a.menus[0].open=false;a.dispatch('keydown',{key:'Escape',preventDefault(){assert.fail('no open menu');}});assert.equal(a.focused,null);});
+
+test('unique-ID icon uses inset horizontal links and software uses an editor window',()=>{
+ const a=app();
+ assert.ok(a.api.icons.unique.includes('M9 7H7a5 5 0 0 0 0 10h2m6-10h2a5 5 0 0 1 0 10h-2'));
+ assert.ok(a.api.icons.unique.includes('M8 12h8'));
+ assert.ok(a.api.icons.software.includes('<rect x="3" y="4" width="18" height="16" rx="2"/>'));
+ assert.ok(a.api.icons.software.includes('M3 9h18'));
+});

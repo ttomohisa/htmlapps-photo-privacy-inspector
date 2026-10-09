@@ -13,3 +13,17 @@ function riffChunk(type,data) { const l=Buffer.alloc(4);l.writeUInt32LE(data.len
 function webp(...chunks) { const body=Buffer.concat([Buffer.from('WEBP'),...chunks]);const size=Buffer.alloc(4);size.writeUInt32LE(body.length);return Buffer.concat([Buffer.from('RIFF'),size,body]); }
 
 module.exports={png,jpeg,webp,chunk,riffChunk,manifest,jp,segment};
+
+// Two independently decodable synthetic JPEGs, with a minimal MPF index.
+// Consumers supply repository-generated fixture images, never personal photos.
+function multiJpeg(first,second) {
+  const tiff=Buffer.alloc(82);tiff.write('MM',0);tiff.writeUInt16BE(42,2);tiff.writeUInt32BE(8,4);tiff.writeUInt16BE(3,8);
+  tiff.writeUInt16BE(0xb000,10);tiff.writeUInt16BE(7,12);tiff.writeUInt32BE(4,14);tiff.write('0100',18);
+  tiff.writeUInt16BE(0xb001,22);tiff.writeUInt16BE(4,24);tiff.writeUInt32BE(1,26);tiff.writeUInt32BE(2,30);
+  tiff.writeUInt16BE(0xb002,34);tiff.writeUInt16BE(7,36);tiff.writeUInt32BE(32,38);tiff.writeUInt32BE(50,42);
+  const primaryLength=first.length+90; // marker+length+MPF signature+TIFF
+  tiff.writeUInt32BE(0x20030000,50);tiff.writeUInt32BE(primaryLength,54);
+  tiff.writeUInt32BE(second.length,70);tiff.writeUInt32BE(primaryLength-10,74);
+  return Buffer.concat([first.subarray(0,2),segment(0xe2,Buffer.concat([Buffer.from('MPF\0'),tiff])),first.subarray(2),second]);
+}
+module.exports.multiJpeg=multiJpeg;

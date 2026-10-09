@@ -24,6 +24,10 @@ The app checks supported JPEG, PNG and WebP metadata for AI generation/editing d
 
 Cleaning removes supported embedded records from the saved copy and checks the result again. **C2PA signatures, provenance and edit history will be lost.** Removal of invisible pixel watermarks such as SynthID is not guaranteed. Unknown proprietary metadata may remain; the original file is unchanged.
 
+## HDR and multi-image JPEGs
+
+Complete concatenated JPEG images, including MPF/HDR gain-map containers, are inspected image by image. Auxiliary metadata contributes to the findings. For these files, **Save an SDR still image** is the explicit supported cleanup route: it re-encodes the primary image and loses HDR brightness and auxiliary images. The original is unchanged, and the saved single-image output is inspected again. No-recompression cleanup is disabled rather than silently damaging HDR linkage. Bulk ZIP omits these files and lists their names; export them individually after reading the warning. Non-JPEG trailers and damaged auxiliary images remain unsupported.
+
 ## Features
 
 - Inspect GPS, timestamps, camera/phone model, serial IDs, creator/owner, software, comments, unique IDs, and thumbnails

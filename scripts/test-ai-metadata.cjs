@@ -83,3 +83,45 @@ test('aggregate text budget and chunk count limits fail closed',()=>{
  const empty=chunk('aaAa',Buffer.alloc(0));const many=Buffer.concat([png().subarray(0,33),Buffer.concat(Array.from({length:100001},()=>empty)),png().subarray(33)]);
  assert.equal(api.inspect(many).status,'error');
 });
+
+test('concatenated JPEG images expose all bounded ranges without assuming AI metadata absence',()=>{
+ const first=jpeg(),second=jpeg(jp(manifest()));const input=Buffer.concat([first,second]);const preflight=api.inspect(input);
+ assert.equal(preflight.status,'unknown');assert.equal(preflight.multiImage,true);assert.equal(preflight.hasProvenance,true);assert.equal(preflight.images.length,2);
+ assert.deepEqual(JSON.parse(JSON.stringify(preflight.images)),[{start:0,end:first.length},{start:first.length,end:input.length}]);
+ assert.equal(preflight.secondaryMetadataInspected,false);assert.equal(preflight.losslessSupported,false);
+ const full=api.inspect(input,[{},{exif:{UserComment:{description:'Steps: 20, Sampler: Euler, Seed: 42'}}}]);
+ assert.equal(full.status,'records');assert.equal(full.secondaryMetadataInspected,true);assert.equal(full.hasAiRecords,true);assert.equal(full.hasProvenance,true);
+ assert.equal(api.verify(input,[{},{}]).clean,false);assert.throws(()=>api.strip(input,'jpeg'),/Multi-image/);
+});
+test('all image metadata must be supplied for a no-record multi-JPEG result',()=>{
+ const input=Buffer.concat([jpeg(),jpeg()]);assert.equal(api.inspect(input,{}).status,'unknown');assert.equal(api.inspect(input,[{}]).status,'unknown');
+ assert.equal(api.inspect(input,[{},{}]).status,'none');assert.equal(api.verify(input,[{},{}]).clean,false);
+});
+test('multi-JPEG inspection rejects truncated or unbounded additional images and foreign tails',()=>{
+ const sixteen=Buffer.concat(Array.from({length:16},()=>jpeg()));assert.equal(api.inspect(sixteen,Array.from({length:16},()=>({}))).status,'none');
+ for(const input of [Buffer.concat([jpeg(),jpeg().subarray(0,-1)]),Buffer.concat([jpeg(),Buffer.from('ftypisom')]),Buffer.concat(Array.from({length:17},()=>jpeg()))])assert.equal(api.inspect(input).status,'error');
+});
+
+test('synthetic MPF fixture declares exact primary size and secondary TIFF-relative offset',()=>{
+ const {multiJpeg}=require('../tests/fixtures/ai-metadata.cjs');assert.equal(typeof multiJpeg,'function');const first=jpeg(),second=jpeg();const input=multiJpeg(first,second);const r=api.inspect(input,[{},{}]);assert.equal(r.multiImage,true);const tiff=10,entries=tiff+50;assert.equal(input.readUInt32BE(entries+4),r.images[0].end);assert.equal(input.readUInt32BE(entries+20),second.length);assert.equal(input.readUInt32BE(entries+24)+tiff,r.images[1].start);
+});
+
+test('SDR decoder preparation removes MPF and XMP links but preserves EXIF, ICC and image payload',()=>{
+ assert.equal(typeof api.primaryForSdr,'function');const {multiJpeg}=require('../tests/fixtures/ai-metadata.cjs');
+ for(const orientation of [6,8]) {
+  const exif=Buffer.from([69,120,105,102,0,0,77,77,0,42,0,0,0,8,0,1,1,18,0,3,0,0,0,1,0,orientation,0,0,0,0,0,0]);
+  const exifSegment=segment(0xe1,exif),icc=segment(0xe2,Buffer.from('ICC_PROFILE\0\1\1synthetic profile')),other=segment(0xe2,Buffer.from('unrelated-app2'));
+  const standard=segment(0xe1,Buffer.from('http://ns.adobe.com/xap/1.0/\0<synthetic-gainmap-link/>'));
+  const extended=segment(0xe1,Buffer.from('http://ns.adobe.com/xmp/extension/\0synthetic extended XMP'));
+  const first=jpeg(exifSegment,icc,other,standard,extended,jp(manifest())),input=multiJpeg(first,jpeg());const unchanged=Buffer.from(input);
+  const output=api.primaryForSdr(input);assert.deepEqual(Buffer.from(output),jpeg(exifSegment,icc,other));assert.deepEqual(input,unchanged);
+  const result=api.inspect(output);assert.equal(result.multiImage,false);assert.equal(result.hasProvenance,false);
+  assert.equal(Buffer.from(output).includes(exif),true,'Orientation-bearing EXIF must survive decoder preparation');
+ }
+});
+test('SDR decoder preparation is not a clean-output bypass and rejects unsupported tails',()=>{
+ assert.equal(typeof api.primaryForSdr,'function');const input=jpeg(segment(0xe1,Buffer.from('Exif\0\0synthetic private metadata')));
+ assert.equal(api.verify(api.primaryForSdr(input)).clean,false);
+ assert.throws(()=>api.primaryForSdr(Buffer.concat([jpeg(),Buffer.from('unsupported motion tail')])));
+ assert.throws(()=>api.primaryForSdr(png()));
+});

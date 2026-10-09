@@ -95,8 +95,8 @@ var PhotoAiMetadata = (() => {
     for (let p = desc.end; p < root.end;) p = boxAt(b,p,root.end).end;
     return hasUuid && label === 'c2pa';
   }
-  function jpegParts(b) {
-    const parts=[]; let p=2, entropy=false, ended=false;
+  function jpegParts(b,startOffset=0,allowFollowing=false) {
+    const parts=[]; let p=startOffset+2, entropy=false, ended=false;
     while (p < b.length) {
       if (parts.length > MAX_PARTS) fail('Too many JPEG segments');
       if (entropy) {
@@ -115,7 +115,7 @@ var PhotoAiMetadata = (() => {
       while (p < b.length && b[p]===255) p++;
       if (p===b.length) fail('Truncated JPEG marker');
       const marker=b[p++];
-      if (marker===217) { if(p!==b.length) fail('Trailing JPEG data is not inspected'); ended=true;break; }
+      if (marker===217) { if(!allowFollowing && p!==b.length) fail('Trailing JPEG data is not inspected'); parts.end=p;ended=true;break; }
       if (marker===216 || marker===0) fail('Unexpected JPEG marker');
       if (marker===1 || (marker>=208 && marker<=215)) continue;
       if(p+2>b.length) fail('Truncated JPEG segment length');
@@ -127,7 +127,27 @@ var PhotoAiMetadata = (() => {
     if(!ended) fail('Missing JPEG end marker');
     return parts;
   }
-  function scanJpeg(b, records) {
+  function jpegImages(b) {
+    const images=[];let start=0,segments=0;
+    while(start<b.length) {
+      if(images.length>=16)fail('Too many JPEG images');
+      if(b[start]!==255 || b[start+1]!==216)fail('Unsupported data after JPEG image');
+      const parts=jpegParts(b,start,true);segments+=parts.length;
+      if(segments>MAX_PARTS)fail('Too many JPEG segments');
+      images.push({start,end:parts.end,parts});start=parts.end;
+    }
+    return images;
+  }
+  function scanJpeg(b,records) {
+    const images=jpegImages(b),ranges=[];
+    for(const image of images) {
+      const local=scanJpegImage(b.subarray(image.start,image.end),records);
+      ranges.push(...local.map(([start,end])=>[start+image.start,end+image.start]));
+    }
+    ranges.images=images.map(({start,end})=>({start,end}));
+    return ranges;
+  }
+  function scanJpegImage(b, records) {
     const parts=jpegParts(b), ranges=[]; const used=new Set();
     for(let i=0;i<parts.length;i++) {
       const part=parts[i];if(part.marker!==235) continue;
@@ -217,25 +237,53 @@ var PhotoAiMetadata = (() => {
   }
   function scan(b,records) {
     const kind=kindOf(b);
-    if(kind==='unknown')return {kind,ranges:[]};
+    if(kind==='unknown')return {kind,ranges:[],images:[]};
     const ranges=kind==='jpeg'?scanJpeg(b,records):kind==='png'?scanPng(b,records):scanWebp(b,records);
-    return {kind,ranges};
+    return {kind,ranges,images:ranges.images||[]};
   }
   function inspect(value, parsedTags={}) {
     const records=[];let kind='unknown';
     try {
-      const b=bytes(value);kind=kindOf(b);scan(b,records);inspectTags(parsedTags,records);
+      const b=bytes(value);kind=kindOf(b);const {images}=scan(b,records);
+      const multiImage=images.length>1;
+      const secondaryMetadataInspected=!multiImage || (Array.isArray(parsedTags) && parsedTags.length===images.length);
+      if(Array.isArray(parsedTags))for(const tags of parsedTags)inspectTags(tags,records);else inspectTags(parsedTags,records);
       const hasAiRecords=records.some(x=>x.kind!=='provenance'),hasProvenance=records.some(x=>x.kind==='provenance');
-      return {status:kind==='unknown'?'unknown':records.length?'records':'none',records,hasAiRecords,hasProvenance,kind,error:null,decompressionLimit:2*1024*1024,warnings:hasProvenance?['C2PA signatures and AI assertions are not verified']:[]};
+      const warnings=hasProvenance?['C2PA signatures and AI assertions are not verified']:[];
+      if(!secondaryMetadataInspected)warnings.push('Additional JPEG metadata has not been fully inspected');
+      if(multiImage)warnings.push('Multiple JPEG images: metadata-preserving lossless cleaning is not supported');
+      return {status:kind==='unknown'||!secondaryMetadataInspected?'unknown':records.length?'records':'none',records,hasAiRecords,hasProvenance,kind,images,multiImage,secondaryMetadataInspected,losslessSupported:kind!=='unknown'&&!multiImage,error:null,decompressionLimit:2*1024*1024,warnings};
     } catch(e) {return {status:'error',records,hasAiRecords:records.some(x=>x.kind!=='provenance'),hasProvenance:records.some(x=>x.kind==='provenance'),kind,error:String(e.message||e),decompressionLimit:2*1024*1024,warnings:['Inspection incomplete']};}
   }
   function strip(value,expectedKind) {
-    const b=bytes(value),{kind,ranges}=scan(b,[]);
+    const b=bytes(value),{kind,ranges,images}=scan(b,[]);
+    if(images.length>1)fail('Multi-image JPEG requires an explicitly selected normal-image re-encode');
     if(kind==='unknown' || (expectedKind && expectedKind!==kind))fail('Unsupported or mismatched image format');
     const parts=[];let start=0;for(const [from,to] of ranges){parts.push(b.subarray(start,from));start=to;}parts.push(b.subarray(start));const out=join(parts);
     if(kind==='webp')new DataView(out.buffer,out.byteOffset,out.byteLength).setUint32(4,out.length-8,true);
     const after=scan(out,[]);if(after.ranges.length)fail('Provenance removal verification failed');
     return out;
+  }
+  // Decoder input ONLY for an explicitly selected SDR re-encode. This preserves
+  // private EXIF so orientation can be decoded correctly; it is NOT clean output.
+  // Remove links to omitted auxiliary images before a browser HDR decoder sees it.
+  function primaryForSdr(value) {
+    const b=bytes(value);
+    if(kindOf(b)!=='jpeg')fail('SDR primary preparation supports JPEG only');
+    const images=jpegImages(b);
+    const primary=strip(b.subarray(0,images[0].end),'jpeg');
+    const parts=[];let start=0;
+    for(const p of jpegParts(primary)) {
+      const data=primary.subarray(p.data,p.end);
+      const prefix=text(data,0,Math.min(data.length,40));
+      const isMpf=p.marker===226 && prefix.startsWith('MPF\0');
+      const isXmp=p.marker===225 && (prefix.startsWith('http://ns.adobe.com/xap/1.0/\0') || prefix.startsWith('http://ns.adobe.com/xmp/extension/\0'));
+      if(isMpf || isXmp) {parts.push(primary.subarray(start,p.start));start=p.end;}
+    }
+    parts.push(primary.subarray(start));
+    const result=join(parts);
+    if(jpegImages(result).length!==1)fail('Primary JPEG extraction failed');
+    return result;
   }
   function minimalOrientation(b) {
     const expected = new Uint8Array([69,120,105,102,0,0,77,77,0,42,0,0,0,8,0,1,1,18,0,3,0,0,0,1,0,1,0,0,0,0,0,0]);
@@ -245,7 +293,7 @@ var PhotoAiMetadata = (() => {
   function remainingMetadata(b,kind) {
     const found=[];
     if(kind==='jpeg') {
-      for(const p of jpegParts(b)) if([225,236,237,254].includes(p.marker) && !(p.marker===225 && minimalOrientation(b.subarray(p.data,p.end)))) found.push('JPEG APP/COM metadata');
+      for(const p of jpegImages(b).flatMap(image=>image.parts)) if([225,236,237,254].includes(p.marker) && !(p.marker===225 && minimalOrientation(b.subarray(p.data,p.end)))) found.push('JPEG APP/COM metadata');
     } else if(kind==='png') {
       for(let p=8;p+12<=b.length;) {const type=four(b,p+4),length=be(b,p);if(['tEXt','iTXt','zTXt','eXIf','tIME','caBX'].includes(type))found.push('PNG '+type);p+=12+length;}
     } else if(kind==='webp') {
@@ -256,7 +304,7 @@ var PhotoAiMetadata = (() => {
   function verify(value,parsedTags={}) {
     const result=inspect(value,parsedTags);
     const remaining=result.status!=='error' && result.kind!=='unknown'?remainingMetadata(bytes(value),result.kind):[];
-    return {...result,remainingMetadata:remaining,clean:result.status==='none' && remaining.length===0};
+    return {...result,remainingMetadata:remaining,clean:result.status==='none' && !result.multiImage && remaining.length===0};
   }
-  return Object.freeze({inspect,strip,verify});
+  return Object.freeze({inspect,strip,verify,primaryForSdr});
 })();
