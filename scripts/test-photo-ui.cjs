@@ -23,7 +23,7 @@ function app() {
   vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={dict,renderExposure,renderAiRecords,icons};})();'),context);
   return {node,menus,api:context.api,get focused(){return focused;},dispatch(type,event){for(const fn of events[type]||[])fn(event);}};
 }
-test('approved headline stays synchronized in Japanese and English',()=>{const a=app();assert.equal(a.api.dict.ja.introTitle,'写真だけを、シェアしよう。');assert.equal(a.api.dict.en.introTitle,'Share the photo. Keep the private details.');});
+test('approved headline stays synchronized in Japanese and English',()=>{const a=app();assert.equal(a.api.dict.ja.introTitle,'写真だけをシェアする');assert.equal(a.api.dict.en.introTitle,'Share the photo. Keep the private details.');});
 test('drop panel has no decorative circular pseudo element',()=>assert.doesNotMatch(html,/\.drop-panel::before\s*\{/));
 test('mobile metadata toolbar stays in normal flow above the first result',()=>{const rules=[...html.matchAll(/\.metadata-toolbar\s*\{([^}]*)\}/g)];assert.ok(rules.length);for(const [,rule] of rules)assert.doesNotMatch(rule,/position\s*:\s*(sticky|fixed)/);});
 test('all ten exposure categories render labeled decorative line SVGs',()=>{const a=app(),keys=['gps','place','time','device','serial','identity','software','text','unique','thumbnail'];a.api.renderExposure({risk:{found:Object.fromEntries(keys.map(k=>[k,true]))}});const rendered=a.node('exposureList').innerHTML;assert.equal((rendered.match(/<svg\b/g)||[]).length,10);assert.equal((rendered.match(/aria-hidden="true"/g)||[]).length,10);assert.doesNotMatch(rendered,/\p{Extended_Pictographic}/u);for(const k of keys)assert.ok(rendered.includes(a.api.dict.en[k]));});
@@ -68,4 +68,15 @@ test('creation and editing headings are neutral while provenance alone is explic
   assert.equal(a.node('aiRecordsStatus').textContent,a.api.dict.en[key]);
  }
  for(const status of ['error','unknown']){a.api.renderAiRecords({aiMetadata:{status,records:[]}});assert.equal(a.node('aiRecordsStatus').textContent,a.api.dict.en[status==='error'?'aiError':'aiUnknown']);}
+});
+test('open dialogs constrain their scroll body while preserving header and footer',()=>{
+ const openRule=html.match(/dialog\[open\]\s*\{([^}]+)\}/)?.[1]||'';assert.match(openRule,/display\s*:\s*flex/);assert.match(openRule,/flex-direction\s*:\s*column/);
+ const bodyRule=html.match(/\.dialog-body\s*\{([^}]+)\}/)?.[1]||'';assert.match(bodyRule,/min-height\s*:\s*0/);assert.match(bodyRule,/flex\s*:\s*1 1 auto/);assert.match(bodyRule,/overflow\s*:\s*auto/);assert.doesNotMatch(bodyRule,/max-height\s*:\s*calc/);
+ for(const selector of ['dialog-header','dialog-footer']){const rule=html.match(new RegExp('\\.'+selector+'\\s*\\{([^}]+)\\}'))?.[1]||'';assert.match(rule,/flex-shrink\s*:\s*0/);}
+ assert.match(html,/<dialog id="helpDialog">[\s\S]*?<div class="dialog-body" tabindex="0">/);
+});
+test('local-processing badge matches the Mini League Desk shield reference',()=>{
+ const svg=html.match(/<div class="local-badge">(<svg[\s\S]*?<\/svg>)/)?.[1]||'';
+ assert.match(svg,/stroke-width="1.9"/);assert.match(svg,/stroke-linecap="round"/);assert.match(svg,/stroke-linejoin="round"/);assert.match(svg,/aria-hidden="true"/);
+ assert.ok(svg.includes('d="M12 3 5 6v5c0 4.6 2.8 8 7 10 4.2-2 7-5.4 7-10V6z"'));assert.ok(svg.includes('d="m9 12 2 2 4-5"'));
 });
