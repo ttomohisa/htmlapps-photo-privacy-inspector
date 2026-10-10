@@ -81,3 +81,9 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Before that action, explain loss of HDR brightness and auxiliary images, JPEG recompression, and that the original file is unchanged. Prepare only the primary image for an sRGB Canvas export and re-inspect the resulting single image before saving.
 - Batch ZIP must never silently perform SDR conversion; unsupported multi-image files are omitted and listed for individual handling.
 - The unique-ID chain has inset geometry that leaves stroke padding; the editing-software icon is a simple editor window.
+
+## Responsive Help and header (v1.0.4)
+
+- Opening Help locks document scrolling; dismissal restores the normal page. Existing dialog flex sizing, body scrolling and explicit Close/Escape policy remain unchanged.
+- At widths up to 430px, title/version wrap while language and Help controls remain nonshrinking.
+- Native short/narrow geometry, keyboard and wheel checks are required in addition to source contracts. Loaded-photo privacy inspection, cleaning and save verification remain separate gates.
