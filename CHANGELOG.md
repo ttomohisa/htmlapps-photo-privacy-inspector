@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.4] - 2026-10-10
+
+- Lock background page scrolling while Help is open.
+- Keep the title and version visible in narrow headers without shrinking utility controls.
+- Preserve existing dialog sizing, dismissal policy and photo inspection/cleaning behavior.
+
 ## [1.0.3] - 2026-10-09
 
 ### Added
