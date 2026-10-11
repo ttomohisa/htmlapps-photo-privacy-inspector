@@ -163,3 +163,5 @@ Privacy Cleanでは再圧縮せず、JPEG/WebPの表示方向に必要な場合�
 `scripts/check-repository.ps1`は向き1〜8、WebPのアルファ・アニメーション・sRGBプロファイル、JPEG/PNG対照を含むClean回帰テストを、ソースと両方の生成HTMLで実行します。独立した画素検証は、開発環境にPillowを用意し、`PHOTO_CLEAN_OUTPUT_DIR=./test-output node --test scripts/test-photo-clean.cjs`、続けて`python scripts/verify-photo-pixels.py ./test-output`を実行します（PowerShellではNode実行前に`$env:PHOTO_CLEAN_OUTPUT_DIR="./test-output"`を設定）。向きを適用した全フレームの寸法とRGBA画素を比較します。実ブラウザーでの保存・再表示確認とは別の検証です。
 
 Node環境にはDOMParserがないため、EXIFは実際の解析エンジンで確認し、XMPはチャンクが除去されたことを検証します。sRGB対照ではICCの既存警告が残ることも確認し、メタデータがすべて消えたとは扱いません。
+
+ヘルプ表示中は背景ページのスクロールを止めます。狭いヘッダーでもバージョンと言語・ヘルプ操作を表示します。
