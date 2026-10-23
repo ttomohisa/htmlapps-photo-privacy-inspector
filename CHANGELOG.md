@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Standardize the English local-processing badge without changing photo inspection, cleaning, or existing Help layout.
+
 ## [1.0.4] - 2026-10-10
 
 - Lock background page scrolling while Help is open.
