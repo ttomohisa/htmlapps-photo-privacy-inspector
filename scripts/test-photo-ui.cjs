@@ -92,3 +92,5 @@ test('photo chooser uses a rounded image-plus icon with separate padded addition
  const svg=html.match(/<span class="drop-icon">(<svg[\s\S]*?<\/svg>)/)?.[1]||'';assert.match(svg,/stroke-linecap="round"/);assert.match(svg,/stroke-linejoin="round"/);assert.match(svg,/aria-hidden="true"/);
  assert.ok(svg.includes('M13 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-8'));assert.ok(svg.includes('M18 3v6m-3-3h6'));
 });
+
+test('local-processing badge uses the shared bilingual label',()=>{const a=app();assert.equal(a.api.dict.ja.localOnly,'完全ローカル処理');assert.equal(a.api.dict.en.localOnly,'Fully local processing');});

@@ -87,3 +87,5 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Opening Help locks document scrolling; dismissal restores the normal page. Existing dialog flex sizing, body scrolling and explicit Close/Escape policy remain unchanged.
 - At widths up to 430px, title/version wrap while language and Help controls remain nonshrinking.
 - Native short/narrow geometry, keyboard and wheel checks are required in addition to source contracts. Loaded-photo privacy inspection, cleaning and save verification remain separate gates.
+
+The 完全ローカル処理 badge uses the shared English wording “Fully local processing”. Existing build information remains at the end of Help.
