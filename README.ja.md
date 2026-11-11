@@ -69,6 +69,10 @@ Python、Node.js、ローカルWebサーバーは不要です。Windows PowerShe
 5. Privacy CleanまたはDeep Cleanを実行します。
 6. Clean後の再検査で、要注意メタデータが残っていないか確認して保存します。
 
+## HEIC写真
+
+HEICは画像を表示できないブラウザでもメタデータの確認ができます。HEIC対応のSafariなどでは、**JPEGに変換して保存**から端末の画像デコーダーを使って主画像を再圧縮し、保存前にJPEGを再検査します。HEVCのデコーダーは追加していません。元画像は変更しません。HDR・追加画像・透過情報・特殊な色／深度情報は保持できません。HEIC非対応のブラウザでは変換・プレビューを利用できない場合があります。再圧縮なしの一括ZIPはHEICを含みません。
+
 ## Privacy Clean と Deep Clean
 
 ### Privacy Clean（推奨）

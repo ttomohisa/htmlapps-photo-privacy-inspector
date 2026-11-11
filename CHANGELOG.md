@@ -4,6 +4,8 @@
 
 ## [1.0.5] - 2026-11-11
 
+- Use native HEIC decoding where available for explicit HEIC-to-JPEG cleaning, preserving privacy verification and adding clear limitations. No additional HEVC codec is bundled.
+
 - Replace the poetic bilingual hero with concise task-focused text and consistent Japanese/English heading typography.
 - Make Help shorter by default, with expandable format limits, HDR/multi-image warnings, AI/C2PA caveats and build information.
 - Publish version tags and four-asset GitHub Releases automatically after successful main-branch Pages deployment; validate release HTML and self-extract payloads.
