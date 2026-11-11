@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.0.5] - 2026-11-11
+## [1.1.0] - 2026-11-11
 
 - Use native HEIC decoding where available for explicit HEIC-to-JPEG cleaning, preserving privacy verification and adding clear limitations. No additional HEVC codec is bundled.
 
