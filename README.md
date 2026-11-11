@@ -80,6 +80,10 @@ Metadata removal cannot hide information visible in the pixels themselves, such 
 
 If metadata parsing fails, the app names the file and reports that its sharing risk is unavailable. It does not assign a low-risk score. If post-clean parsing fails, saving the unverified copy is blocked; ZIP creation omits failed outputs and lists the affected files.
 
+## GitHub Releases
+
+After a new `app.config.json` version is merged into `main`, the GitHub Pages workflow builds and validates the standalone HTML, then deploys the site. **Only after successful deployment**, it creates the `vX.Y.Z` tag and GitHub Release automatically. Each release includes the standalone HTML, self-extracting HTML, distribution ZIP (documentation, manifests, license and notices), and `SHA256SUMS.txt`. An existing tag or release is never overwritten. The release job uses GitHub Actions `contents: write` permission; any publishing failure is reported by the workflow.
+
 ## License
 
 Copyright © 2026 ttomohisa

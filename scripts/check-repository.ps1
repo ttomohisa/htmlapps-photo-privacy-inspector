@@ -102,4 +102,7 @@ try {
   $env:APP_HTML = $previousAppHtml
 }
 
+& node (Join-Path $Root "scripts/validate-release-files.cjs")
+if ($LASTEXITCODE -ne 0) { throw "Release artifact validation failed." }
+
 Write-Host "[OK] Repository check passed." -ForegroundColor Green

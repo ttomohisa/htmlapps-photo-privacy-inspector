@@ -4,6 +4,10 @@
 
 ## [1.0.5] - 2026-11-11
 
+- Replace the poetic bilingual hero with concise task-focused text and consistent Japanese/English heading typography.
+- Make Help shorter by default, with expandable format limits, HDR/multi-image warnings, AI/C2PA caveats and build information.
+- Publish version tags and four-asset GitHub Releases automatically after successful main-branch Pages deployment; validate release HTML and self-extract payloads.
+
 - Avoid GPS location alerts from non-location administrative tags such as GPSVersionID.
 - Remove sensitive JPEG APP/COM markers even between multiple image scans while retaining compressed scan bytes.
 - Keep output file extensions consistent with the actual Canvas export MIME type and prevent misleading manual extensions.

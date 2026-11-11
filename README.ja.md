@@ -144,6 +144,10 @@ Node.js 20以降を用意し、`scripts/check-repository.ps1` で両方のHTML�
 
 詳細は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を確認してください。
 
+## タグとGitHub Release
+
+`app.config.json`のバージョンを更新して`main`にマージすると、GitHub Pagesのビルド・検証・公開が成功した後に、対応する`vX.Y.Z`タグとGitHub Releaseを自動作成します。通常版HTML、自己展開版HTML、ドキュメント・ライセンス・マニフェスト入りZIP、`SHA256SUMS.txt`を添付します。既存のタグやReleaseは上書きしません。公開に失敗した場合はタグを作成せず、GitHub Actionsにエラーを表示します。
+
 ## ライセンス
 
 Copyright © 2026 ttomohisa
