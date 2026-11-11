@@ -33,7 +33,7 @@ function app(language = 'en') {
   node('app-config').textContent = fs.readFileSync(path.join(root, 'app.config.json'), 'utf8');
   node('build-manifest').textContent = '{}';
   const context = vm.createContext({ document: { getElementById: node, querySelectorAll: () => [],
-    createElement: tag => {const el=node(Symbol());if(tag==='canvas'){el.getContext=()=>({drawImage(){}});el.toBlob=callback=>canvasExports.push(callback);}return el;}, addEventListener() {}, documentElement: {}, body: node('body') },
+    createElement: tag => {const el=node(Symbol());if(tag==='canvas'){el.getContext=()=>({drawImage(){},fillRect(){}});el.toBlob=callback=>canvasExports.push(callback);}return el;}, addEventListener() {}, documentElement: {}, body: node('body') },
     navigator: { language }, crypto: webcrypto, Blob, File, ArrayBuffer, Uint8Array, DataView, TextDecoder, TextEncoder, Response,
     URL: { createObjectURL(blob) { const id = `blob:${blobs.size}`; blobs.set(id, blob); return id; }, revokeObjectURL() {} },
     setTimeout(fn, delay) { return delay === 0 ? setTimeout(fn, 0) : 0; }, clearTimeout() {},
@@ -43,7 +43,7 @@ function app(language = 'en') {
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
   html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,stripJpeg,safeDownloadName,deepClean,initEngine,PhotoAiMetadata,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
   context.api.state.fflate = fflate;
   return { ...context.api, node, downloads, runtime:context, canvasExports };
@@ -369,4 +369,113 @@ test('photo and optional file inputs allow repeat selection, ignore cancellation
   input.files=[];await input.handlers.change();assert.equal(a.state.items.length,2);
   input.files=[file('not an image','notes.txt','text/plain')];await input.handlers.change();assert.equal(a.state.items.length,2);assert.equal(a.node('toast').textContent,a.t('invalidFile'));
  }
+});
+
+
+test('GPSVersionID alone is not a location exposure, while coordinates still are',()=>{
+ const a=app(),administrative={gps:{GPSVersionID:{value:[2,3,0,0]},GPSMapDatum:{value:'WGS-84'}}};
+ const metadata=a.flattenMetadata(administrative),risk=a.assess(administrative,metadata);
+ assert.equal(risk.found.gps,undefined);assert.equal(risk.score,0);
+ const location={gps:{Latitude:{value:35.123},Longitude:{value:136.456}}};
+ const positionRisk=a.assess(location,a.flattenMetadata(location));
+ assert.equal(positionRisk.score,45);assert.ok(positionRisk.found.gps);
+});
+
+test('JPEG Privacy Clean removes APP1 and COM between scans without touching scan bytes',()=>{
+ const a=app();
+ const scanOne=Buffer.from([255,218,0,2,1,255,0,2,255,208,3]);
+ const scanTwo=Buffer.from([255,218,0,2,4,5,6]);
+ const app1=Buffer.from([255,225,0,6,65,66,67,68]);
+ const comment=Buffer.from([255,254,0,4,69,70]);
+ const source=Buffer.concat([Buffer.from([255,216]),scanOne,app1,comment,scanTwo,Buffer.from([255,217])]);
+ const expected=Buffer.concat([Buffer.from([255,216]),scanOne,scanTwo,Buffer.from([255,217])]);
+ const output=Buffer.from(a.stripJpeg(source));
+ assert.deepEqual(output,expected);
+ assert.equal(a.PhotoAiMetadata.verify(output).clean,true);
+});
+
+test('download extension always matches verified output format',()=>{
+ const a=app();
+ assert.equal(a.safeDownloadName('vacation.png','vacation-clean.jpg'),'vacation.jpg');
+ assert.equal(a.safeDownloadName('new name','vacation-clean.jpg'),'new name.jpg');
+ assert.equal(a.safeDownloadName('  ','vacation-clean.webp'),'vacation-clean.webp');
+ assert.equal(a.safeDownloadName('image.jpeg','vacation-clean.webp'),'image.webp');
+});
+
+test('Deep Clean uses the actual PNG fallback MIME instead of requested JPEG extension',async()=>{
+ const a=app(),photo=file(bytesFor('control.jpg'),'example.jpg','image/jpeg');
+ a.runtime.createImageBitmap=async()=>({width:1,height:1,close(){}});
+ const pending=a.deepClean({file:photo,kind:'jpeg',aiMetadata:{multiImage:false}});
+ await new Promise(r=>setImmediate(r));assert.equal(a.canvasExports.length,1);
+ a.canvasExports[0](new Blob([Buffer.from([0])],{type:'image/png'}));
+ const result=await pending;assert.equal(result.blob.type,'image/png');assert.equal(result.name,'example-clean.png');
+});
+
+test('ZIP archive failure is surfaced, does not download and resets on clearing',async()=>{
+ const a=app(),item=await a.analyzeFile(file(bytesFor('control.jpg'),'control.jpg','image/jpeg'));
+ a.state.items.push(item);a.state.current=0;
+ a.state.fflate={...fflate,zipSync(){throw new Error('Injected ZIP memory failure')}};
+ await a.batchClean();
+ assert.equal(a.downloads.length,0);
+ assert.equal(a.state.batchZipError,true);
+ assert.equal(a.node('batchError').hidden,false);
+ assert.match(a.node('batchError').textContent,/Could not create or save the ZIP/);
+ assert.equal(a.state.operations.batch,null);
+ a.clearAll();assert.equal(a.state.batchZipError,false);
+});
+
+test('embedded dependency initialization rejection permits a later retry',async()=>{
+ const a=app();
+ a.state.ExifReader=null;a.state.fflate=null;
+ a.node('embedded-assets').textContent='e30='; // Valid base64 JSON, missing dependency payload.
+ await assert.rejects(a.initEngine());
+ assert.equal(a.state.enginePromise,null);
+ await assert.rejects(a.initEngine());
+ assert.equal(a.state.enginePromise,null);
+});
+
+
+test('HEIC and camera HIF formats retain metadata analysis and present explicit JPEG export',async()=>{
+ for(const name of ['capture.heic','capture.heif','capture.hif']){
+  const a=app(),it=await a.analyzeFile(file(bytesFor('control.jpg'),name,name.endsWith('hif')?'':'image/heic'));
+  assert.equal(it.kind,'heic');assert.ok(it.url,'Native-capable browsers need a HEIC preview URL');
+  a.state.items.push(it);a.state.current=0;a.renderCurrent();
+  assert.equal(a.node('losslessClean').disabled,true);
+  assert.equal(a.node('cleanButton').textContent,a.t('heicExport'));
+  assert.equal(a.node('deepCleanLabel').textContent,a.t('heicExport'));
+  assert.equal(a.node('multiImageWarning').hidden,false);
+  assert.match(a.node('multiImageWarning').textContent,/HDR/);
+  assert.ok(a.node('deepClean').className.includes('recommended'));
+ }
+});
+
+test('HEIC clean falls back to platform Image.decode and exports a metadata-free JPEG',async()=>{
+ const a=app(),input=file(bytesFor('control.jpg'),'capture.HEIC','image/heic');
+ const decoded=[];
+ a.runtime.createImageBitmap=async()=>{throw Error('HEIC ImageBitmap unavailable')};
+ a.runtime.Image=class{
+  naturalWidth=1;naturalHeight=1;
+  set src(value){decoded.push(value)}
+  async decode(){}
+ };
+ const pending=a.deepClean({file:input,kind:'heic',aiMetadata:{multiImage:false}});
+ while(!a.canvasExports.length)await new Promise(resolve=>setTimeout(resolve,0));
+ // Simulate Safari's Canvas exporting a valid JPEG that still contains EXIF.
+ a.canvasExports[0](new Blob([bytesFor('control.jpg')],{type:'image/jpeg'}));
+ const out=await pending;
+ assert.equal(decoded.length,1);
+ assert.equal(out.name,'capture-clean.jpg');
+ assert.equal(out.blob.type,'image/jpeg');
+ assert.equal(out.conversion,'heic-to-jpeg');
+ const checked=await a.inspectBlob(out.blob,out.name);
+ assert.equal(checked.aiMetadata.clean,true);
+ assert.equal(checked.risk.score,0);
+});
+
+test('unsupported native HEIC decoder returns an honest error instead of a fake clean result',async()=>{
+ const a=app(),input=file(bytesFor('control.jpg'),'photo.heic','image/heic');
+ a.runtime.createImageBitmap=async()=>{throw Error('No native HEIC')};
+ a.runtime.Image=class{naturalWidth=0;naturalHeight=0;set src(value){}async decode(){throw Error('Not supported')}};
+ await assert.rejects(a.deepClean({file:input,kind:'heic',aiMetadata:{multiImage:false}}),/This browser cannot open HEIC images/);
+ assert.equal(a.canvasExports.length,0);
 });

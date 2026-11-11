@@ -24,6 +24,10 @@ The app checks supported JPEG, PNG and WebP metadata for AI generation/editing d
 
 Cleaning removes supported embedded records from the saved copy and checks the result again. **C2PA signatures, provenance and edit history will be lost.** Removal of invisible pixel watermarks such as SynthID is not guaranteed. Unknown proprietary metadata may remain; the original file is unchanged.
 
+## HEIC photos
+
+HEIC metadata can be inspected even if the browser cannot decode the pixels. On browsers with native HEIC decoding (such as supported Safari versions), **Convert to JPEG & save** uses the built-in image decoder, re-encodes the displayed main image, and verifies the saved JPEG. No HEVC codec is bundled. The source HEIC stays unchanged. HDR, additional images, transparency and specialized color/depth information are not preserved. Unsupported browsers can inspect metadata but may not preview or convert HEIC. HEIC is excluded from the lossless batch ZIP.
+
 ## HDR and multi-image JPEGs
 
 Complete concatenated JPEG images, including MPF/HDR gain-map containers, are inspected image by image. Auxiliary metadata contributes to the findings. For these files, **Save an SDR still image** is the explicit supported cleanup route: it re-encodes the primary image and loses HDR brightness and auxiliary images. The original is unchanged, and the saved single-image output is inspected again. No-recompression cleanup is disabled rather than silently damaging HDR linkage. Bulk ZIP omits these files and lists their names; export them individually after reading the warning. Non-JPEG trailers and damaged auxiliary images remain unsupported.
@@ -79,6 +83,10 @@ With Node.js 20 or newer available, run `scripts/check-repository.ps1` to build 
 Metadata removal cannot hide information visible in the pixels themselves, such as faces, addresses, signs, plates, or recognizable locations. Lossless cleaning is limited to JPEG/PNG/WebP. Deep Clean depends on browser decoding support. Proprietary metadata may not always be recognized, which is why post-clean verification is part of the workflow.
 
 If metadata parsing fails, the app names the file and reports that its sharing risk is unavailable. It does not assign a low-risk score. If post-clean parsing fails, saving the unverified copy is blocked; ZIP creation omits failed outputs and lists the affected files.
+
+## GitHub Releases
+
+After a new `app.config.json` version is merged into `main`, the GitHub Pages workflow builds and validates the standalone HTML, then deploys the site. **Only after successful deployment**, it creates the `vX.Y.Z` tag and GitHub Release automatically. Each release includes the standalone HTML, self-extracting HTML, distribution ZIP (documentation, manifests, license and notices), and `SHA256SUMS.txt`. An existing tag or release is never overwritten. The release job uses GitHub Actions `contents: write` permission; any publishing failure is reported by the workflow.
 
 ## License
 

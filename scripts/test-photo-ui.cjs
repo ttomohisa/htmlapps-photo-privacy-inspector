@@ -23,7 +23,7 @@ function app() {
   vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={dict,renderExposure,renderAiRecords,icons};})();'),context);
   return {node,menus,api:context.api,get focused(){return focused;},dispatch(type,event){for(const fn of events[type]||[])fn(event);}};
 }
-test('approved headline stays synchronized in Japanese and English',()=>{const a=app();assert.equal(a.api.dict.ja.introTitle,'写真だけをシェアする');assert.equal(a.api.dict.en.introTitle,'Share the photo. Keep the private details.');});
+test('approved headline stays synchronized in Japanese and English',()=>{const a=app();assert.equal(a.api.dict.ja.introTitle,'写真の情報を確認');assert.equal(a.api.dict.en.introTitle,'Check photo details');});
 test('drop panel has no decorative circular pseudo element',()=>assert.doesNotMatch(html,/\.drop-panel::before\s*\{/));
 test('mobile metadata toolbar stays in normal flow above the first result',()=>{const rules=[...html.matchAll(/\.metadata-toolbar\s*\{([^}]*)\}/g)];assert.ok(rules.length);for(const [,rule] of rules)assert.doesNotMatch(rule,/position\s*:\s*(sticky|fixed)/);});
 test('all ten exposure categories render labeled decorative line SVGs',()=>{const a=app(),keys=['gps','place','time','device','serial','identity','software','text','unique','thumbnail'];a.api.renderExposure({risk:{found:Object.fromEntries(keys.map(k=>[k,true]))}});const rendered=a.node('exposureList').innerHTML;assert.equal((rendered.match(/<svg\b/g)||[]).length,10);assert.equal((rendered.match(/aria-hidden="true"/g)||[]).length,10);assert.doesNotMatch(rendered,/\p{Extended_Pictographic}/u);for(const k of keys)assert.ok(rendered.includes(a.api.dict.en[k]));});
@@ -94,3 +94,16 @@ test('photo chooser uses a rounded image-plus icon with separate padded addition
 });
 
 test('local-processing badge uses the shared bilingual label',()=>{const a=app();assert.equal(a.api.dict.ja.localOnly,'完全ローカル処理');assert.equal(a.api.dict.en.localOnly,'Fully local processing');});
+
+test('Help starts short and retains all limitations in three expandable sections',()=>{
+ const a=app(),section=html.match(/<dialog id="helpDialog">([\s\S]*?)<\/dialog>/)?.[1]||'';
+ assert.equal((section.match(/class="help-more"/g)||[]).length,3);
+ for(const key of ['limit1','limit2','limit3','limit4','limit5','aiHelp','aiCleanWarning','helpClean','filePickerHelp','helpRemove'])assert.ok(section.includes('data-i18n="'+key+'"'));
+ assert.ok(section.includes('id="buildInfo"'));
+ assert.ok(section.includes('<dl class="help-methods">'));
+ for(const language of ['ja','en']){
+  const d=a.api.dict[language];
+  for(const key of ['helpMoreTitle','helpAiTitle','helpCleanLossless','helpCleanDeep','helpClean','helpPrivacy','aiHelp','aiCleanWarning'])assert.ok(d[key],language+': '+key);
+  assert.ok(d.introText.length<55);
+ }
+});

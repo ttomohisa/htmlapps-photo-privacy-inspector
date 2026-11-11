@@ -50,12 +50,38 @@ jobs:
         New-Item -ItemType Directory -Force -Path test-results/mobile-label | Out-Null
         node scripts/mobile-label.browser.cjs 2>&1 | Tee-Object -FilePath test-results/mobile-label/results.log
         if ($LASTEXITCODE -ne 0) { throw "Mobile label browser regression failed." }
+    - name: Exercise actual photo workflows in Chromium
+      shell: pwsh
+      run: |
+        $env:NODE_PATH = Join-Path $env:RUNNER_TEMP "mobile-label-tests/node_modules"
+        New-Item -ItemType Directory -Force -Path test-results/photo-browser | Out-Null
+        node scripts/test-photo-browser.cjs 2>&1 | Tee-Object -FilePath test-results/photo-browser/results.log
+        if ($LASTEXITCODE -ne 0) { throw "Real-browser photo workflow regression failed." }
+    - name: Inspect a real HEIC in Chromium and verify unsupported-codec handling
+      shell: pwsh
+      run: |
+        $env:NODE_PATH = Join-Path $env:RUNNER_TEMP "mobile-label-tests/node_modules"
+        node scripts/test-heic.browser.cjs 2>&1 | Tee-Object -FilePath test-results/photo-browser/heic-chromium.log
+        if ($LASTEXITCODE -ne 0) { throw "HEIC Chromium browser regression failed." }
+    - name: Independently verify unchanged decoded pixels
+      shell: pwsh
+      run: |
+        $env:PHOTO_CLEAN_OUTPUT_DIR = Join-Path (Get-Location) "test-results/pixel-outputs"
+        New-Item -ItemType Directory -Force -Path $env:PHOTO_CLEAN_OUTPUT_DIR | Out-Null
+        node --test scripts/test-photo-clean.cjs 2>&1 | Tee-Object -FilePath test-results/photo-browser/pixel-generation.log
+        if ($LASTEXITCODE -ne 0) { throw "Fixture cleanup failed." }
+        python -m pip install --disable-pip-version-check pillow==11.3.0
+        if ($LASTEXITCODE -ne 0) { throw "Pillow installation failed." }
+        python scripts/verify-photo-pixels.py $env:PHOTO_CLEAN_OUTPUT_DIR 2>&1 | Tee-Object -FilePath test-results/photo-browser/pixel-verification.log
+        if ($LASTEXITCODE -ne 0) { throw "Independent decoded-pixel comparison failed." }
     - name: Upload mobile label browser evidence
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: mobile-label-browser-evidence
-        path: test-results/mobile-label/
+        path: |
+          test-results/mobile-label/
+          test-results/photo-browser/
         if-no-files-found: ignore
         retention-days: 7
     - name: Upload static preview site
@@ -69,3 +95,47 @@ jobs:
         include-hidden-files: true
     permissions:
       contents: read
+
+  heic-macos:
+    name: Inspect and export real HEIC with macOS WebKit
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    needs: preview
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+    - name: Setup Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: 24
+    - name: Restore verified standalone for HEIC browser test
+      uses: actions/download-artifact@v8
+      with:
+        name: pr-preview-site
+        path: dist
+    - name: Install WebKit test browser
+      shell: bash
+      run: |
+        set -euo pipefail
+        npm install --prefix "$RUNNER_TEMP/heic-playwright" --ignore-scripts --no-audit --no-fund --package-lock=false playwright@1.58.2
+        "$RUNNER_TEMP/heic-playwright/node_modules/.bin/playwright" install webkit
+    - name: Exercise native HEIC browser path
+      shell: bash
+      run: |
+        set -euo pipefail
+        export NODE_PATH="$RUNNER_TEMP/heic-playwright/node_modules"
+        mkdir -p test-results/heic-browser
+        node scripts/test-heic.browser.cjs --webkit 2>&1 | tee test-results/heic-browser/results.log
+    - name: Preserve HEIC browser evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: heic-macos-browser-evidence
+        path: test-results/heic-browser/
+        if-no-files-found: ignore
+        retention-days: 7

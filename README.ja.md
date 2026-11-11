@@ -69,6 +69,10 @@ Python、Node.js、ローカルWebサーバーは不要です。Windows PowerShe
 5. Privacy CleanまたはDeep Cleanを実行します。
 6. Clean後の再検査で、要注意メタデータが残っていないか確認して保存します。
 
+## HEIC写真
+
+HEICは画像を表示できないブラウザでもメタデータの確認ができます。HEIC対応のSafariなどでは、**JPEGに変換して保存**から端末の画像デコーダーを使って主画像を再圧縮し、保存前にJPEGを再検査します。HEVCのデコーダーは追加していません。元画像は変更しません。HDR・追加画像・透過情報・特殊な色／深度情報は保持できません。HEIC非対応のブラウザでは変換・プレビューを利用できない場合があります。再圧縮なしの一括ZIPはHEICを含みません。
+
 ## Privacy Clean と Deep Clean
 
 ### Privacy Clean（推奨）
@@ -143,6 +147,10 @@ Node.js 20以降を用意し、`scripts/check-repository.ps1` で両方のHTML�
 | fflate | 0.8.3 | MIT | 複数Clean画像のZIP生成 |
 
 詳細は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を確認してください。
+
+## タグとGitHub Release
+
+`app.config.json`のバージョンを更新して`main`にマージすると、GitHub Pagesのビルド・検証・公開が成功した後に、対応する`vX.Y.Z`タグとGitHub Releaseを自動作成します。通常版HTML、自己展開版HTML、ドキュメント・ライセンス・マニフェスト入りZIP、`SHA256SUMS.txt`を添付します。既存のタグやReleaseは上書きしません。公開に失敗した場合はタグを作成せず、GitHub Actionsにエラーを表示します。
 
 ## ライセンス
 

@@ -39,6 +39,10 @@ The app is not only an EXIF viewer. It converts hidden fields into an exposure s
 - Deep Clean redraws the image through Canvas; it can change compression and file bytes.
 - Every clean result is parsed again and the remaining sensitive metadata is shown.
 
+## HEIC (native decoder only)
+
+HEIC metadata can be inspected even if the browser cannot decode the pixels. On browsers with native HEIC decoding (such as supported Safari versions), **Convert to JPEG & save** uses the built-in image decoder, re-encodes the displayed main image, and verifies the saved JPEG. No HEVC codec is bundled. The source HEIC stays unchanged. HDR, additional images, transparency and specialized color/depth information are not preserved. Unsupported browsers can inspect metadata but may not preview or convert HEIC. HEIC is excluded from the lossless batch ZIP.
+
 ## 6. Non-goals
 
 - Face/address/plate detection in visible pixels.

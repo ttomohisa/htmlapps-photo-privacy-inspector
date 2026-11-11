@@ -47,3 +47,31 @@ jobs:
             dist/.nojekyll
           if-no-files-found: error
           retention-days: 14
+
+  release-package:
+    name: Dry-run release downloads (no tag or publication)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pull request source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Download the validated Windows build
+        uses: actions/download-artifact@v8
+        with:
+          name: standalone-html-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist
+      - name: Validate HTML, ZIP, checksums, and release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/validate-release-files.cjs
+          node scripts/prepare-release.cjs
+          (cd dist/release-package && sha256sum -c SHA256SUMS.txt)
+          test -s dist/release-package/notes.md
+          test -s dist/release-package/SHA256SUMS.txt
+          echo "Release package dry run passed. No tag or GitHub Release was created." >> "$GITHUB_STEP_SUMMARY"

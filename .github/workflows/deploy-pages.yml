@@ -95,3 +95,86 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  release:
+    name: Create tag and GitHub Release after successful deployment
+    if: github.event_name == 'push' && needs.deploy.result == 'success'
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout released commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Check version and existing release
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./app.config.json').version")"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::app.config.json must have stable SemVer, got: $version"
+            exit 1
+          fi
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Release $tag already exists; leaving its tag and assets unchanged." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha' 2>/dev/null || true)"
+          if [[ -n "$existing" && "$existing" != "$GITHUB_SHA" ]]; then
+            echo "::error::Existing tag $tag refers to $existing, not this deploy ($GITHUB_SHA). Bump the version."
+            exit 1
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+      - name: Download successful build outputs
+        if: steps.version.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: standalone-html-${{ github.sha }}
+          path: dist
+
+      - name: Validate and package versioned downloads
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/validate-release-files.cjs
+          node scripts/prepare-release.cjs
+          (cd dist/release-package && sha256sum -c SHA256SUMS.txt)
+
+      - name: Create version tag and publish release
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha' 2>/dev/null || true)"
+          if [[ -z "$existing" ]]; then
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA" >/dev/null
+          elif [[ "$existing" != "$GITHUB_SHA" ]]; then
+            echo "::error::Tag $RELEASE_TAG changed before publication; refusing to overwrite it."
+            exit 1
+          fi
+          name="htmlapps-photo-privacy-inspector-$RELEASE_TAG"
+          gh release create "$RELEASE_TAG" \
+            "dist/release-package/$name.html" \
+            "dist/release-package/$name.self-extract.html" \
+            "dist/release-package/$name.zip" \
+            "dist/release-package/SHA256SUMS.txt" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --target "$GITHUB_SHA" \
+            --title "Photo Privacy Inspector $RELEASE_TAG" --notes-file dist/release-package/notes.md
+          echo "Published $RELEASE_TAG with 4 verified download assets." >> "$GITHUB_STEP_SUMMARY"
