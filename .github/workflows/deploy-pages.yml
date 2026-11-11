@@ -147,35 +147,11 @@ jobs:
       - name: Validate and package versioned downloads
         if: steps.version.outputs.publish == 'true'
         shell: bash
-        env:
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           node scripts/validate-release-files.cjs
-          name="htmlapps-photo-privacy-inspector-$RELEASE_TAG"
-          mkdir -p release/distribution
-          cp dist/index.html "release/$name.html"
-          cp dist/index.self-extract.html "release/$name.self-extract.html"
-          cp "release/$name.html" "release/$name.self-extract.html" release/distribution/
-          cp dist/dependency-manifest.json dist/self-extract-manifest.json release/distribution/
-          cp README.md README.ja.md CHANGELOG.md LICENSE THIRD_PARTY_NOTICES.md release/distribution/
-          (cd release/distribution && zip -q -r "../$name.zip" .)
-          (cd release && sha256sum "$name.html" "$name.self-extract.html" "$name.zip" > SHA256SUMS.txt)
-          (cd release && sha256sum -c SHA256SUMS.txt)
-          node <<'NODE'
-          const fs=require('node:fs');
-          const version=process.env.RELEASE_TAG.slice(1);
-          const lines=fs.readFileSync('CHANGELOG.md','utf8').split(/\r?\n/);
-          const begin=lines.findIndex(line=>line.startsWith('## ['+version+']'));
-          if(begin<0)throw new Error('CHANGELOG is missing release notes for '+version);
-          const next=lines.findIndex((line,i)=>i>begin&&line.startsWith('## '));
-          const details=lines.slice(begin+1,next<0?undefined:next).join('\n').trim();
-          if(!details)throw new Error('Release notes are empty for '+version);
-          fs.writeFileSync('release/notes.md',
-            '# Photo Privacy Inspector v'+version+'\n\n'+details+
-            '\n\n## Downloads\n\nThe HTML files run locally in a browser. The ZIP includes documentation, manifests, licenses and notices. Check SHA256SUMS.txt for the release downloads.\n\n'+
-            'See [README (English)](../../blob/v'+version+'/README.md) or [README (日本語)](../../blob/v'+version+'/README.ja.md) for limitations.\n');
-          NODE
+          node scripts/prepare-release.cjs
+          (cd dist/release-package && sha256sum -c SHA256SUMS.txt)
 
       - name: Create version tag and publish release
         if: steps.version.outputs.publish == 'true'
@@ -195,10 +171,10 @@ jobs:
           fi
           name="htmlapps-photo-privacy-inspector-$RELEASE_TAG"
           gh release create "$RELEASE_TAG" \
-            "release/$name.html" \
-            "release/$name.self-extract.html" \
-            "release/$name.zip" \
-            "release/SHA256SUMS.txt" \
+            "dist/release-package/$name.html" \
+            "dist/release-package/$name.self-extract.html" \
+            "dist/release-package/$name.zip" \
+            "dist/release-package/SHA256SUMS.txt" \
             --repo "$GITHUB_REPOSITORY" --verify-tag --target "$GITHUB_SHA" \
-            --title "Photo Privacy Inspector $RELEASE_TAG" --notes-file release/notes.md
+            --title "Photo Privacy Inspector $RELEASE_TAG" --notes-file dist/release-package/notes.md
           echo "Published $RELEASE_TAG with 4 verified download assets." >> "$GITHUB_STEP_SUMMARY"
