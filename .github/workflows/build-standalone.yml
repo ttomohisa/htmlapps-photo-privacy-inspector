@@ -65,6 +65,9 @@ jobs:
         with:
           name: standalone-html-${{ github.event.pull_request.head.sha || github.sha }}
           path: dist
+      - name: Test GitHub tag lookup, including actual 404 response shape
+        shell: bash
+        run: bash scripts/test-release-tag-lookup.sh
       - name: Validate HTML, ZIP, checksums, and release notes
         shell: bash
         run: |

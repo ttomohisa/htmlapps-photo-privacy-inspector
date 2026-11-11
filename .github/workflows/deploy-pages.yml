@@ -130,7 +130,7 @@ jobs:
             echo "Release $tag already exists; leaving its tag and assets unchanged." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha' 2>/dev/null || true)"
+          existing="$(bash scripts/release-tag-sha.sh "$tag")"
           if [[ -n "$existing" && "$existing" != "$GITHUB_SHA" ]]; then
             echo "::error::Existing tag $tag refers to $existing, not this deploy ($GITHUB_SHA). Bump the version."
             exit 1
@@ -161,7 +161,7 @@ jobs:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha' 2>/dev/null || true)"
+          existing="$(bash scripts/release-tag-sha.sh "$RELEASE_TAG")"
           if [[ -z "$existing" ]]; then
             gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
               -f "ref=refs/tags/$RELEASE_TAG" -f "sha=$GITHUB_SHA" >/dev/null
