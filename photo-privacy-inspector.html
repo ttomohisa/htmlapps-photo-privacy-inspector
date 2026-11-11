@@ -578,9 +578,13 @@ async function deepClean(it){
  if(it.kind==="jpeg"||it.kind==="heic"){type="image/jpeg";quality=.94}
  else if(it.kind==="webp"){type="image/webp";quality=.94}
  else if(it.kind!=="png"){type="image/jpeg";quality=.94}
- const blob=await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Canvas export failed")),type,quality));
+ let blob=await new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error("Canvas export failed")),type,quality));
  const ext={"image/jpeg":".jpg","image/png":".png","image/webp":".webp"}[(blob.type||"").toLowerCase()];
  if(!ext)throw new Error("Canvas returned unsupported image format");
+ if(it.kind==="heic"&&ext===".jpg"){
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  blob=new Blob([stripJpeg(PhotoAiMetadata.strip(bytes,"jpeg"),1)],{type:"image/jpeg"});
+ }
  return{blob,name:fileNameClean(it.file.name,ext),method:"deep",conversion:it.kind==="heic"?"heic-to-jpeg":it.aiMetadata?.multiImage?"sdr-primary-image":null}
 }
 async function inspectBlob(blob,name){const buffer=await blob.arrayBuffer();const preflight=PhotoAiMetadata.inspect(new Uint8Array(buffer));if(preflight.status==="error")throw new Error(t("aiVerificationFailed"));let tags={};try{tags=await state.ExifReader.load(buffer,{expanded:true,includeUnknown:true,computed:true,async:true,decompress:{maxDecompressedSize:preflight.decompressionLimit||16*1024*1024}})}catch(e){console.warn("Cleaned metadata parse failed",name,e);throw new Error(t("verificationFailed"))}const aiMetadata=PhotoAiMetadata.verify(new Uint8Array(buffer),tags);if(!aiMetadata.clean)throw new Error(t("aiVerificationFailed"));const metadata=flattenMetadata(tags),risk=assess(tags,metadata),hash=await sha256(buffer);return{buffer,tags,metadata,aiMetadata,risk,hash,name}}

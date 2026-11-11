@@ -460,9 +460,8 @@ test('HEIC clean falls back to platform Image.decode and exports a metadata-free
  };
  const pending=a.deepClean({file:input,kind:'heic',aiMetadata:{multiImage:false}});
  while(!a.canvasExports.length)await new Promise(resolve=>setTimeout(resolve,0));
- const privacySource=await a.analyzeFile(file(bytesFor('control.jpg'),'source.jpg','image/jpeg'));
- const clean=await a.privacyClean(privacySource);
- a.canvasExports[0](clean.blob);
+ // Simulate Safari's Canvas exporting a valid JPEG that still contains EXIF.
+ a.canvasExports[0](new Blob([bytesFor('control.jpg')],{type:'image/jpeg'}));
  const out=await pending;
  assert.equal(decoded.length,1);
  assert.equal(out.name,'capture-clean.jpg');

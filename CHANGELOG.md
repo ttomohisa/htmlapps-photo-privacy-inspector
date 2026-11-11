@@ -4,6 +4,8 @@
 
 ## [1.1.0] - 2026-11-11
 
+- Remove JPEG metadata left by native Canvas encoders before verifying a HEIC-to-JPEG copy.
+
 - Use native HEIC decoding where available for explicit HEIC-to-JPEG cleaning, preserving privacy verification and adding clear limitations. No additional HEVC codec is bundled.
 
 - Replace the poetic bilingual hero with concise task-focused text and consistent Japanese/English heading typography.
