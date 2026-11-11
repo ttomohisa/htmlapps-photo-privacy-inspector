@@ -52,6 +52,13 @@ async function main(){
     assert.equal(await page.locator('#losslessClean').isDisabled(),true);
     assert.equal(await page.locator('#multiImageWarning').isVisible(),true);
     await page.locator('#deepClean').click();
+    await page.waitForTimeout(2000);
+    console.log('HEIC_DIAGNOSTICS '+engine+' '+locale+' '+JSON.stringify(await page.evaluate(()=>({
+      cleanStatus:document.querySelector('#cleanStatus')?.textContent,
+      verifyOpen:document.querySelector('#verifyDialog')?.open,
+      cleanOpen:document.querySelector('#cleanDialog')?.open,
+      preview:document.querySelector('#previewWrap')?.textContent?.slice(0,100)
+    }))));
     await Promise.race([
      page.locator('#verifyDialog').waitFor({state:'visible',timeout:45000}),
      page.waitForFunction(()=>/HEIC画像を開けません|cannot open HEIC images/.test(document.querySelector('#cleanStatus')?.textContent||''),null,{timeout:45000})
