@@ -162,7 +162,11 @@ async function mobileBrowser(browser,width,height){
   await page.locator('#helpButton').click();
   const help=page.locator('#helpDialog');
   assert.equal(await help.isVisible(),true);
+  assert.equal(await help.locator('.help-more').count(),3);
+  await help.locator('.help-more').nth(0).locator('summary').click();
+  await help.locator('.help-more').nth(1).locator('summary').click();
   await help.locator('.dialog-body').evaluate(el=>{el.scrollTop=el.scrollHeight});
+  await noHorizontalOverflow(page,label+' expanded help');
   await page.keyboard.press('Escape');assert.equal(await help.isVisible(),false);
   await page.locator('#cleanButton').click();
   await noHorizontalOverflow(page,label+' clean dialog');
