@@ -43,7 +43,7 @@ function app(language = 'en') {
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
   html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,stripJpeg,safeDownloadName,deepClean,initEngine,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
   context.api.state.fflate = fflate;
   return { ...context.api, node, downloads, runtime:context, canvasExports };
@@ -369,4 +369,67 @@ test('photo and optional file inputs allow repeat selection, ignore cancellation
   input.files=[];await input.handlers.change();assert.equal(a.state.items.length,2);
   input.files=[file('not an image','notes.txt','text/plain')];await input.handlers.change();assert.equal(a.state.items.length,2);assert.equal(a.node('toast').textContent,a.t('invalidFile'));
  }
+});
+
+
+test('GPSVersionID alone is not a location exposure, while coordinates still are',()=>{
+ const a=app(),administrative={gps:{GPSVersionID:{value:[2,3,0,0]},GPSMapDatum:{value:'WGS-84'}}};
+ const metadata=a.flattenMetadata(administrative),risk=a.assess(administrative,metadata);
+ assert.equal(risk.found.gps,undefined);assert.equal(risk.score,0);
+ const location={gps:{Latitude:{value:35.123},Longitude:{value:136.456}}};
+ const positionRisk=a.assess(location,a.flattenMetadata(location));
+ assert.equal(positionRisk.score,45);assert.ok(positionRisk.found.gps);
+});
+
+test('JPEG Privacy Clean removes APP1 and COM between scans without touching scan bytes',()=>{
+ const a=app();
+ const scanOne=Buffer.from([255,218,0,2,1,255,0,2,255,208,3]);
+ const scanTwo=Buffer.from([255,218,0,2,4,5,6]);
+ const app1=Buffer.from([255,225,0,6,65,66,67,68]);
+ const comment=Buffer.from([255,254,0,4,69,70]);
+ const source=Buffer.concat([Buffer.from([255,216]),scanOne,app1,comment,scanTwo,Buffer.from([255,217])]);
+ const expected=Buffer.concat([Buffer.from([255,216]),scanOne,scanTwo,Buffer.from([255,217])]);
+ const output=Buffer.from(a.stripJpeg(source));
+ assert.deepEqual(output,expected);
+ assert.equal(a.runtime.PhotoAiMetadata.verify(output).clean,true);
+});
+
+test('download extension always matches verified output format',()=>{
+ const a=app();
+ assert.equal(a.safeDownloadName('vacation.png','vacation-clean.jpg'),'vacation.jpg');
+ assert.equal(a.safeDownloadName('new name','vacation-clean.jpg'),'new name.jpg');
+ assert.equal(a.safeDownloadName('  ','vacation-clean.webp'),'vacation-clean.webp');
+ assert.equal(a.safeDownloadName('image.jpeg','vacation-clean.webp'),'image.webp');
+});
+
+test('Deep Clean uses the actual PNG fallback MIME instead of requested JPEG extension',async()=>{
+ const a=app(),photo=file(bytesFor('control.jpg'),'example.jpg','image/jpeg');
+ a.runtime.createImageBitmap=async()=>({width:1,height:1,close(){}});
+ const pending=a.deepClean({file:photo,kind:'jpeg',aiMetadata:{multiImage:false}});
+ await new Promise(r=>setImmediate(r));assert.equal(a.canvasExports.length,1);
+ a.canvasExports[0](new Blob([Buffer.from([0])],{type:'image/png'}));
+ const result=await pending;assert.equal(result.blob.type,'image/png');assert.equal(result.name,'example-clean.png');
+});
+
+test('ZIP archive failure is surfaced, does not download and resets on clearing',async()=>{
+ const a=app(),item=await a.analyzeFile(file(bytesFor('control.jpg'),'control.jpg','image/jpeg'));
+ a.state.items.push(item);a.state.current=0;
+ a.state.fflate={...fflate,zipSync(){throw new Error('Injected ZIP memory failure')}};
+ await a.batchClean();
+ assert.equal(a.downloads.length,0);
+ assert.equal(a.state.batchZipError,true);
+ assert.equal(a.node('batchError').hidden,false);
+ assert.match(a.node('batchError').textContent,/Could not create or save the ZIP/);
+ assert.equal(a.state.operations.batch,null);
+ a.clearAll();assert.equal(a.state.batchZipError,false);
+});
+
+test('embedded dependency initialization rejection permits a later retry',async()=>{
+ const a=app();
+ a.state.ExifReader=null;a.state.fflate=null;
+ a.node('embedded-assets').textContent='e30='; // Valid base64 JSON, missing dependency payload.
+ await assert.rejects(a.initEngine());
+ assert.equal(a.state.enginePromise,null);
+ await assert.rejects(a.initEngine());
+ assert.equal(a.state.enginePromise,null);
 });
