@@ -50,12 +50,32 @@ jobs:
         New-Item -ItemType Directory -Force -Path test-results/mobile-label | Out-Null
         node scripts/mobile-label.browser.cjs 2>&1 | Tee-Object -FilePath test-results/mobile-label/results.log
         if ($LASTEXITCODE -ne 0) { throw "Mobile label browser regression failed." }
+    - name: Exercise actual photo workflows in Chromium
+      shell: pwsh
+      run: |
+        $env:NODE_PATH = Join-Path $env:RUNNER_TEMP "mobile-label-tests/node_modules"
+        New-Item -ItemType Directory -Force -Path test-results/photo-browser | Out-Null
+        node scripts/test-photo-browser.cjs 2>&1 | Tee-Object -FilePath test-results/photo-browser/results.log
+        if ($LASTEXITCODE -ne 0) { throw "Real-browser photo workflow regression failed." }
+    - name: Independently verify unchanged decoded pixels
+      shell: pwsh
+      run: |
+        $env:PHOTO_CLEAN_OUTPUT_DIR = Join-Path (Get-Location) "test-results/pixel-outputs"
+        New-Item -ItemType Directory -Force -Path $env:PHOTO_CLEAN_OUTPUT_DIR | Out-Null
+        node --test scripts/test-photo-clean.cjs 2>&1 | Tee-Object -FilePath test-results/photo-browser/pixel-generation.log
+        if ($LASTEXITCODE -ne 0) { throw "Fixture cleanup failed." }
+        python -m pip install --disable-pip-version-check pillow==11.3.0
+        if ($LASTEXITCODE -ne 0) { throw "Pillow installation failed." }
+        python scripts/verify-photo-pixels.py $env:PHOTO_CLEAN_OUTPUT_DIR 2>&1 | Tee-Object -FilePath test-results/photo-browser/pixel-verification.log
+        if ($LASTEXITCODE -ne 0) { throw "Independent decoded-pixel comparison failed." }
     - name: Upload mobile label browser evidence
       if: always()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
         name: mobile-label-browser-evidence
-        path: test-results/mobile-label/
+        path: |
+          test-results/mobile-label/
+          test-results/photo-browser/
         if-no-files-found: ignore
         retention-days: 7
     - name: Upload static preview site
