@@ -33,7 +33,7 @@ function app(language = 'en') {
   node('app-config').textContent = fs.readFileSync(path.join(root, 'app.config.json'), 'utf8');
   node('build-manifest').textContent = '{}';
   const context = vm.createContext({ document: { getElementById: node, querySelectorAll: () => [],
-    createElement: tag => {const el=node(Symbol());if(tag==='canvas'){el.getContext=()=>({drawImage(){}});el.toBlob=callback=>canvasExports.push(callback);}return el;}, addEventListener() {}, documentElement: {}, body: node('body') },
+    createElement: tag => {const el=node(Symbol());if(tag==='canvas'){el.getContext=()=>({drawImage(){},fillRect(){}});el.toBlob=callback=>canvasExports.push(callback);}return el;}, addEventListener() {}, documentElement: {}, body: node('body') },
     navigator: { language }, crypto: webcrypto, Blob, File, ArrayBuffer, Uint8Array, DataView, TextDecoder, TextEncoder, Response,
     URL: { createObjectURL(blob) { const id = `blob:${blobs.size}`; blobs.set(id, blob); return id; }, revokeObjectURL() {} },
     setTimeout(fn, delay) { return delay === 0 ? setTimeout(fn, 0) : 0; }, clearTimeout() {},
@@ -432,4 +432,49 @@ test('embedded dependency initialization rejection permits a later retry',async(
  assert.equal(a.state.enginePromise,null);
  await assert.rejects(a.initEngine());
  assert.equal(a.state.enginePromise,null);
+});
+
+
+test('HEIC and camera HIF formats retain metadata analysis and present explicit JPEG export',async()=>{
+ for(const name of ['capture.heic','capture.heif','capture.hif']){
+  const a=app(),it=await a.analyzeFile(file(bytesFor('control.jpg'),name,name.endsWith('hif')?'':'image/heic'));
+  assert.equal(it.kind,'heic');assert.ok(it.url,'Native-capable browsers need a HEIC preview URL');
+  a.state.items.push(it);a.state.current=0;a.renderCurrent();
+  assert.equal(a.node('losslessClean').disabled,true);
+  assert.equal(a.node('cleanButton').textContent,a.t('heicExport'));
+  assert.equal(a.node('deepCleanLabel').textContent,a.t('heicExport'));
+  assert.equal(a.node('multiImageWarning').hidden,false);
+  assert.match(a.node('multiImageWarning').textContent,/HDR/);
+  assert.ok(a.node('deepClean').className.includes('recommended'));
+ }
+});
+
+test('HEIC clean falls back to platform Image.decode and exports a metadata-free JPEG',async()=>{
+ const a=app(),input=file(bytesFor('control.jpg'),'capture.HEIC','image/heic');
+ const decoded=[];
+ a.runtime.createImageBitmap=async()=>{throw Error('HEIC ImageBitmap unavailable')};
+ a.runtime.Image=class{
+  naturalWidth=1;naturalHeight=1;
+  set src(value){decoded.push(value)}
+  async decode(){}
+ };
+ const pending=a.deepClean({file:input,kind:'heic',aiMetadata:{multiImage:false}});
+ while(!a.canvasExports.length)await new Promise(resolve=>setTimeout(resolve,0));
+ a.canvasExports[0](new Blob([bytesFor('control.jpg')],{type:'image/jpeg'}));
+ const out=await pending;
+ assert.equal(decoded.length,1);
+ assert.equal(out.name,'capture-clean.jpg');
+ assert.equal(out.blob.type,'image/jpeg');
+ assert.equal(out.conversion,'heic-to-jpeg');
+ const checked=await a.inspectBlob(out.blob,out.name);
+ assert.equal(checked.aiMetadata.clean,true);
+ assert.equal(checked.risk.score,0);
+});
+
+test('unsupported native HEIC decoder returns an honest error instead of a fake clean result',async()=>{
+ const a=app(),input=file(bytesFor('control.jpg'),'photo.heic','image/heic');
+ a.runtime.createImageBitmap=async()=>{throw Error('No native HEIC')};
+ a.runtime.Image=class{naturalWidth=0;naturalHeight=0;set src(value){}async decode(){throw Error('Not supported')}};
+ await assert.rejects(a.deepClean({file:input,kind:'heic',aiMetadata:{multiImage:false}}),/This browser cannot open HEIC images/);
+ assert.equal(a.canvasExports.length,0);
 });
