@@ -43,7 +43,7 @@ function app(language = 'en') {
   if (payload) html = require('node:zlib').gunzipSync(Buffer.from(payload[1].trim(), 'base64')).toString('utf8');
   html = html.replace('/*__AI_METADATA_SOURCE__*/', () => fs.readFileSync(path.join(root, 'src/ai-metadata.js'), 'utf8'));
   const script = [...html.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)].at(-1)[1];
-  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,stripJpeg,safeDownloadName,deepClean,initEngine,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
+  vm.runInContext(script.replace(/\}\)\(\);\s*$/, 'globalThis.api={state,analyzeFile,addFiles,inspectBlob,doClean,batchClean,applyLanguage,clearAll,privacyClean,showVerification,renderCurrent,resetVerification,flattenMetadata,classifyTag,assess,stripJpeg,safeDownloadName,deepClean,initEngine,PhotoAiMetadata,t,setLanguage(value){lang=value;applyLanguage()}};})();'), context);
   context.api.state.ExifReader = ExifReader;
   context.api.state.fflate = fflate;
   return { ...context.api, node, downloads, runtime:context, canvasExports };
@@ -391,7 +391,7 @@ test('JPEG Privacy Clean removes APP1 and COM between scans without touching sca
  const expected=Buffer.concat([Buffer.from([255,216]),scanOne,scanTwo,Buffer.from([255,217])]);
  const output=Buffer.from(a.stripJpeg(source));
  assert.deepEqual(output,expected);
- assert.equal(a.runtime.PhotoAiMetadata.verify(output).clean,true);
+ assert.equal(a.PhotoAiMetadata.verify(output).clean,true);
 });
 
 test('download extension always matches verified output format',()=>{
