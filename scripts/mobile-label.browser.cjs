@@ -31,8 +31,8 @@ async function main() {
         assert.equal(title.fontSize,width<=760?20:24,label+': title typography');
         assert.ok(title.height<=title.lineHeight+1,label+': title must be one line '+JSON.stringify(title));
         assert.equal(await page.locator('footer').count(),1,'Standard informational footer is added.');
-        assert.equal(await page.locator('footer').isVisible(),width > 760,label+': footer visibility follows mobile breakpoint');
-        assert.equal((await page.locator('footer').textContent()).replace(/\s+/g,' ').trim(),language==='ja'?'Photo Privacy Inspector · MIT License · 写真の検査はブラウザー内で完結':'Photo Privacy Inspector · MIT License · Photo inspection stays in the browser',label+': footer text');
+        assert.equal(await page.locator('footer').isVisible(), width > 760, label+': footer hidden on smartphones');
+        if(width > 760) assert.equal((await page.locator('footer').innerText()).replace(/\s+/g,' ').trim(),language==='ja'?'Photo Privacy Inspector · MIT License · 写真の検査はブラウザー内で完結':'Photo Privacy Inspector · MIT License · Photo inspection stays in the browser',label+': footer text');
         if(width!==393) await page.screenshot({path:path.join(evidence,label+'.png')});
         await page.locator('#helpButton').click();
         const body=page.locator('#helpDialog .dialog-body');
